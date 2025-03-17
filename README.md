@@ -9,3 +9,10 @@ To activate virtual environment:
 
 To install packages from requirements.txt:
 ```pip install -r requirements.txt```
+
+
+To Run the UI chnages 
+Go to UI Folder and start ui using in local system -> python -m http.server 8000
+goto -> http://localhost:8000/
+
+
