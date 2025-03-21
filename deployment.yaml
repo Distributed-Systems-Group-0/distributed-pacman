@@ -17,3 +17,8 @@ spec:
         image: rwaltertcd/pacman:latest
         ports:
         - containerPort: 80
+        env:
+        - name: MONGO_USERNAME
+          value: "<USERNAME>"
+        - name: MONGO_PASSWORD
+          value: "<PASSWORD"
