@@ -58,6 +58,7 @@ function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
 }
 
+//draw() function called 60 times in a second. Each call corresponds to a frame.
 function draw() {
     background(0);
 
