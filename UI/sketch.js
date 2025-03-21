@@ -80,6 +80,20 @@ function draw() {
 
     drawPacman(); //this function is called 60 times a second to animate. Uses mouthAngle 
     // to visually render Pac-Man as an arc (arc()) with the mouth facing the correct direction.
+
+    //Sends position of pacman to the back-end through a POST request
+    //Throttled so it doesnt send position if pac-man hasnt moved
+    if (pacman.x !== lastSentX || pacman.y !== lastSentY) {
+        fetch("/api/position", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ x: pacman.x, y: pacman.y })
+        }).catch(() => {});
+        lastSentX = pacman.x;
+        lastSentY = pacman.y;
+    }
 }
 
 // Ensure Pac-Man is placed correctly in random open spaces
@@ -333,3 +347,4 @@ function drawMaze() {
         }
     }
 }
+
