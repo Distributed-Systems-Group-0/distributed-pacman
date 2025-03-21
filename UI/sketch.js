@@ -28,6 +28,9 @@ const grid = [
     [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
   ];
 
+// Initialise Previous Positions
+let lastSentX = -1;
+let lastSentY = -1;
 
 // Tile size for the grid
 let tileSize = 30;
