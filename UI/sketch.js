@@ -1,3 +1,6 @@
+var username = prompt("Enter a username!")
+
+
 // Define the grid (1 = wall, 0 = open space)
 const grid = [
     [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
@@ -87,8 +90,9 @@ function draw() {
 
     //Sends position of pacman to the back-end through a POST request
     //Throttled so it doesnt send position if pac-man hasnt moved
+    postPositionURL = "/api/"+username+"/position"
     if (pacman.x !== lastSentX || pacman.y !== lastSentY) {
-        fetch("/api/position", {
+        fetch(postPositionURL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

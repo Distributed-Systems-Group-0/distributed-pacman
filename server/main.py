@@ -1,14 +1,17 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from motor.motor_asyncio import AsyncIOMotorClient
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+import redis
 
 load_dotenv()
 MONGO_USERNAME = os.getenv('MONGO_USERNAME')
 MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
 
 #MONGO DB CONNECTION
 # define a lifespan method for fastapi
@@ -45,8 +48,18 @@ async def root():
     return FileResponse("UI/index.html")
 
 #Retrieves Pac-Man's position. Will be the main function to build off of
-@app.post("/api/position")
-async def receive_position(request: Request):
-    data = await request.json()
-    print(f"Pac-Man position: x={data.get('x')} y={data.get('y')}")
+@app.post("/api/{username}/position")
+async def receive_position(request: Request, username):
+    playerLocation = await request.json()
+    cached_item = redis_client.get(f"item_{username}")
+
+    if cached_item:
+        #throw error "username already exists"
+        raise HTTPException(status_code=409, detail="Username already exists!")
+    
+    # Store the item in Redis with an expiration time of 1 hour (3600 seconds)
+    redis_client.setex(f"item_{username}", 5, playerLocation)
+
+    print(f"Pac-Man position: x={playerLocation.get('x')} y={playerLocation.get('y')}")
+
     return {"status": "received"}
