@@ -6,11 +6,14 @@ import os
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 import redis
+import json
 
 load_dotenv()
 MONGO_USERNAME = os.getenv('MONGO_USERNAME')
-MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
-redis_client = redis.Redis(host='localhost', port=6379, db=0)
+MONGO_PASSWORD = os.getenv('MONGO_PASSWORD',"132.164.200.4")
+redis_host = os.getenv("REDIS_HOST")
+redis_password = os.getenv("REDIS_PASSWORD")
+redis_client = redis.Redis(host=redis_host, port=6379, db=0, password=redis_password)
 
 
 #MONGO DB CONNECTION
@@ -51,15 +54,7 @@ async def root():
 @app.post("/api/{username}/position")
 async def receive_position(request: Request, username):
     playerLocation = await request.json()
-    cached_item = redis_client.get(f"item_{username}")
-
-    if cached_item:
-        #throw error "username already exists"
-        raise HTTPException(status_code=409, detail="Username already exists!")
-    
-    # Store the item in Redis with an expiration time of 1 hour (3600 seconds)
-    redis_client.setex(f"item_{username}", 5, playerLocation)
-
-    print(f"Pac-Man position: x={playerLocation.get('x')} y={playerLocation.get('y')}")
-
+    playerLocation_json = json.dumps(playerLocation)
+    redis_client.setex(f"item_{username}", 5, playerLocation_json)
+    #print(f"Pac-Man position: x={playerLocation.get('x')} y={playerLocation.get('y')}")
     return {"status": "received"}

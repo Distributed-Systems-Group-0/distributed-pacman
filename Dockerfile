@@ -1,5 +1,8 @@
 FROM python:3.12
 
+ENV REDIS_HOST=132.164.200.4
+ENV REDIS_PASSWORD=<REDIS_PASSWORD>
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends gcc
