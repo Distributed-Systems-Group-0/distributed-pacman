@@ -1,4 +1,32 @@
 var username = prompt("Enter a username!")
+var ws = new WebSocket(`/ws/location/`+username);
+let isWsReady = false;
+
+ws.onopen = () => {
+    console.log("WebSocket connection established");
+    isWsReady = true;
+    // Send initial position
+    ws.send(JSON.stringify({ x: pacman.x, y: pacman.y }));
+};
+
+ws.onerror = (error) => {
+    console.error("WebSocket error:", error);
+};
+
+ws.onclose = () => {
+    console.log("WebSocket connection closed");
+    isWsReady = false;
+    // Optional: Add reconnect logic here
+};
+
+ws.onmessage = (event) => {
+    try {
+        var message = event.data;
+        print(message)
+    } catch (error) {
+        console.error("Error processing message:", error);
+    }
+};
 
 
 // Define the grid (1 = wall, 0 = open space)
@@ -90,15 +118,15 @@ function draw() {
 
     //Sends position of pacman to the back-end through a POST request
     //Throttled so it doesnt send position if pac-man hasnt moved
-    postPositionURL = "/api/"+username+"/position"
+    // postPositionURL = "/api/"+username+"/position"
     if (pacman.x !== lastSentX || pacman.y !== lastSentY) {
-        fetch(postPositionURL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ x: pacman.x, y: pacman.y })
-        }).catch(() => {});
+        // print(JSON.stringify({x: pacman.x, y: pacman.y}))
+        // ws.onopen = () => ws.send(JSON.stringify({x: pacman.x, y: pacman.y}))
+        if (isWsReady) {
+            ws.send(JSON.stringify({ x: pacman.x, y: pacman.y }));
+            lastSentX = pacman.x;
+            lastSentY = pacman.y;
+        }
         lastSentX = pacman.x;
         lastSentY = pacman.y;
     }
