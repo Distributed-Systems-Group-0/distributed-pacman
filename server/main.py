@@ -95,8 +95,7 @@ async def receive_player_location(websocket: WebSocket, username: str):
             data = await websocket.receive_text()
             message = username, " at:", data
             print(message)
-            # await manager.broadcast(message)
-            await manager.broadcast(f"Client #{username} says: {data}")
+            await manager.broadcast(f"Client #{username} location: {data}")
             
     except WebSocketDisconnect:
         manager.disconnect(websocket)
