@@ -1,5 +1,5 @@
-var username = prompt("Enter a username!")
-
+// var username = prompt("Enter a username!")
+// var ws = new WebSocket(`/ws`);
 
 // Define the grid (1 = wall, 0 = open space)
 const grid = [
@@ -92,13 +92,14 @@ function draw() {
     //Throttled so it doesnt send position if pac-man hasnt moved
     postPositionURL = "/api/"+username+"/position"
     if (pacman.x !== lastSentX || pacman.y !== lastSentY) {
-        fetch(postPositionURL, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ x: pacman.x, y: pacman.y })
-        }).catch(() => {});
+        // fetch(postPositionURL, {
+        //     method: "POST",
+        //     headers: {
+        //         "Content-Type": "application/json"
+        //     },
+        //     body: JSON.stringify({ x: pacman.x, y: pacman.y })
+        // }).catch(() => {});
+        // ws.send(JSON.stringify({}))
         lastSentX = pacman.x;
         lastSentY = pacman.y;
     }
