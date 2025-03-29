@@ -16,6 +16,7 @@ redis_host = os.getenv("REDIS_HOST")
 redis_password = os.getenv("REDIS_PASSWORD")
 redis_client = redis.Redis(host=redis_host, port=6379, db=0, password=redis_password)
 
+pubsub = redis_client.pubsub()
 
 #MONGO DB CONNECTION
 # define a lifespan method for fastapi
@@ -57,24 +58,15 @@ app.mount("/static", StaticFiles(directory="UI"), name="static")
 async def root():
     return FileResponse("UI/index.html")
 
-#Retrieves Pac-Man's position. Will be the main function to build off of
-@app.post("/api/{username}/position")
-async def receive_position(request: Request, username):
-    playerLocation = await request.json()
-    playerLocation_json = json.dumps(playerLocation)
-    redis_client.setex(f"item_{username}", 5, playerLocation_json)
-    #print(f"Pac-Man position: x={playerLocation.get('x')} y={playerLocation.get('y')}")
-    return {"status": "received"}
-
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
 
     async def connect(self, websocket: WebSocket, username: str):
+        if redis_client.exists(f"item_{username}"): return
         await websocket.accept()
         self.active_connections[username] = websocket
         print(f"User ({username}) connected")
-
 
     def disconnect(self, username: str):
         if username in self.active_connections:
@@ -87,14 +79,20 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+async def pacman_update(username):
+    if username in manager.active_connections: return
+    await manager.broadcast(redis_client.get(f"item_{username}"))
+
+pubsub.subscribe("pacman_updates", pacman_update)
+
 @app.websocket("/ws/location/{username}")
 async def receive_player_location(websocket: WebSocket, username: str):
     await manager.connect(websocket, username)
     try:
         while True:
             data = await websocket.receive_text()
-            message = username, " at:", data
-            print(message)
+            redis_client.set(f"item_{username}", data)
+            redis_client.publish('pacman_updates', username)
             await manager.broadcast(f"{data}")
             
     except WebSocketDisconnect:
