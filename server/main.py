@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from motor.motor_asyncio import AsyncIOMotorClient
 from contextlib import asynccontextmanager
@@ -11,11 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 MONGO_USERNAME = os.getenv('MONGO_USERNAME')
-MONGO_PASSWORD = os.getenv('MONGO_PASSWORD',"132.164.200.4")
-redis_host = os.getenv("REDIS_HOST")
+MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
+redis_host = os.getenv("REDIS_HOST","132.164.200.4")
 redis_password = os.getenv("REDIS_PASSWORD")
 redis_client = redis.Redis(host=redis_host, port=6379, db=0, password=redis_password)
 
+pubsub = redis_client.pubsub()
 
 #MONGO DB CONNECTION
 # define a lifespan method for fastapi
@@ -57,28 +59,27 @@ app.mount("/static", StaticFiles(directory="UI"), name="static")
 async def root():
     return FileResponse("UI/index.html")
 
-#Retrieves Pac-Man's position. Will be the main function to build off of
-@app.post("/api/{username}/position")
-async def receive_position(request: Request, username):
-    playerLocation = await request.json()
-    playerLocation_json = json.dumps(playerLocation)
-    redis_client.setex(f"item_{username}", 5, playerLocation_json)
-    #print(f"Pac-Man position: x={playerLocation.get('x')} y={playerLocation.get('y')}")
-    return {"status": "received"}
-
 class ConnectionManager:
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
 
     async def connect(self, websocket: WebSocket, username: str):
+        if redis_client.exists(f"connect_{username}"): return
+        print(f"Creating {username} connection")
+        redis_client.set(f"connect_{username}", "hello world")
         await websocket.accept()
         self.active_connections[username] = websocket
         print(f"User ({username}) connected")
-
+        for un in redis_client.keys("item_*"):
+            print(un)
+            message = f"{redis_client.get(f"{un.decode('utf-8')}").decode('UTF-8')}"
+            await self.active_connections[username].send_text(message)
 
     def disconnect(self, username: str):
         if username in self.active_connections:
             del self.active_connections[username]
+            redis_client.delete(f"connect_{username}")
+            print(f"Deleting {username} connection")
             print(f"User {username} disconnected")
 
     async def broadcast(self, message: str):
@@ -87,17 +88,29 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+def pacman_update(username):
+    un = username['data'].decode('utf-8')
+    print(f"{un} part of the team? {un in manager.active_connections}")
+    if un in manager.active_connections: return
+    print(f"{un} is moving!")
+    print(f"{redis_client.get(f"item_{un}").decode('UTF-8')}")
+    asyncio.run(manager.broadcast(f"{redis_client.get(f"item_{un}").decode('UTF-8')}"))
+
+pubsub.subscribe(**{"pacman_updates":  pacman_update})
+pubsub.run_in_thread(sleep_time=0.001)
+
 @app.websocket("/ws/location/{username}")
 async def receive_player_location(websocket: WebSocket, username: str):
     await manager.connect(websocket, username)
     try:
         while True:
             data = await websocket.receive_text()
-            message = username, " at:", data
-            print(message)
+            # print(data)
+            redis_client.set(f"item_{username}", data)
+            redis_client.publish('pacman_updates', username)
             await manager.broadcast(f"{data}")
             
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        manager.disconnect(username)
         # await manager.broadcast(f"Client #{username} left the game")
             

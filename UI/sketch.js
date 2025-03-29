@@ -319,6 +319,11 @@ function movePacman(pacman) {
     if (grid[newY][newX] === 0) {
         pacman.x = newX;
         pacman.y = newY;
+    } else if (isWsReady && pacman === window.pacman) {
+        ws.send(JSON.stringify(pacman));
+        lastSentX = pacman.x;
+        lastSentY = pacman.y;
+        lastDirection = pacman.direction;
     }
 }
 
