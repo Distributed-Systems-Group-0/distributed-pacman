@@ -1,41 +1,7 @@
-var username = prompt("Enter a username!")
-var ws = new WebSocket(`/ws/location/`+username);
+var username = null
+let ws = null;
 let isWsReady = false;
-
-ws.onopen = () => {
-    console.log("WebSocket connection established");
-    isWsReady = true;
-    // Send initial position
-    ws.send(JSON.stringify(pacman));
-};
-
-ws.onerror = (error) => {
-    console.error("WebSocket error:", error);
-};
-
-ws.onclose = () => {
-    console.log("WebSocket connection closed");
-    isWsReady = false;
-    // Optional: Add reconnect logic here
-};
-
 let pacmen = {}; // store of all pacmen in the game
-
-ws.onmessage = (event) => {
-    try {
-        var message = JSON.parse(event.data);
-        if (username === message.username) {
-            pacman = message;
-        } else {
-            pacmen[message.username] = message;
-            console.log(pacmen);
-        }
-        print(message)
-    } catch (error) {
-        console.error("Error processing message:", error);
-    }
-};
-
 
 // Define the grid (1 = wall, 0 = open space)
 const grid = [
@@ -51,7 +17,7 @@ const grid = [
     [2, 2, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 2, 2],
     [2, 2, 1, 2, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 2, 2, 1, 2, 2],
     [2, 2, 1, 1, 1, 1, 0, 1, 0, 1, 1, 3, 1, 1, 0, 1, 0, 1, 1, 1, 1, 2, 2],
-    [2, 2, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2, 2],
+    [2, 2, 0, 0, 0, 0, 0, 0, 0, 1, 4, 4, 4, 1, 0, 0, 0, 0, 0, 0, 0, 2, 2],
     [2, 2, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 2, 2],
     [2, 2, 1, 2, 2, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 2, 2, 1, 2, 2],
     [2, 2, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 2, 2],
@@ -65,7 +31,7 @@ const grid = [
     [2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2],
     [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
     [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
-  ];
+];
 
 // Initialise Previous Positions
 let lastSentX = -1;
@@ -76,20 +42,61 @@ let lastDirection = " ";
 let tileSize = 30;
 
 // Pac-Man object
-let pacman = {
-    username: username,
-    x: 1, y: 1,  // Will be set randomly
-    direction: " ",
-    nextDirection: " ",
-    smoothX: 1, smoothY: 1,
-    moveDelay: 8,
-    moveCounter: 0,
-    mouthAngle: 20, // Start with an open mouth
-    mouthDirection: 1 //direction of the mouth
-};
+let pacman = {};
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
+
+    username = prompt("Enter a username!");
+    pacmen = {};
+
+    pacman = {
+        username: username,
+        x: 1, y: 1,  // Will be set randomly
+        direction: " ",
+        nextDirection: " ",
+        smoothX: 1, smoothY: 1,
+        moveDelay: 8,
+        moveCounter: 0,
+        mouthAngle: 20, // Start with an open mouth
+        mouthDirection: 1 //direction of the mouth
+    };
+
+    ws = new WebSocket(`/ws/location/` + username);
+    isWsReady = false;
+
+    ws.onopen = () => {
+        console.log("WebSocket connection established");
+        isWsReady = true;
+        // Send initial position
+        ws.send(JSON.stringify(pacman));
+    };
+
+    ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+    };
+
+    ws.onclose = () => {
+        console.log("WebSocket connection closed");
+        isWsReady = false;
+        // Optional: Add reconnect logic here
+    };
+
+    ws.onmessage = (event) => {
+        try {
+            var message = JSON.parse(event.data);
+            if (username === message.username) {
+                pacman = message;
+            } else {
+                pacmen[message.username] = message;
+                console.log(pacmen);
+            }
+            print(message)
+        } catch (error) {
+            console.error("Error processing message:", error);
+        }
+    };
+
     noStroke();
     frameRate(60);
     setRandomPacmanPosition();
@@ -141,7 +148,7 @@ function draw() {
     // Pac-Man's mouth opening and closing by continuously modifying pacman.mouthAngle
 
     // animate pacmen
-    for(p in pacmen) {
+    for (p in pacmen) {
         animatePacmanMouth(pacmen[p]);
     }
 
@@ -423,7 +430,7 @@ function drawMaze() {
                 stroke(255, 255, 255);
                 let x = (orient ? mazeMargin : 0) + i * tileSize;
                 let y = (orient ? 0 : mazeMargin) + j * tileSize;
-                line(x, y + tileSize/2, x + tileSize, y + tileSize/2);
+                line(x, y + tileSize / 2, x + tileSize, y + tileSize / 2);
             }
         }
     }
