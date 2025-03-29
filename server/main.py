@@ -12,8 +12,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 MONGO_USERNAME = os.getenv('MONGO_USERNAME')
-MONGO_PASSWORD = os.getenv('MONGO_PASSWORD',"132.164.200.4")
-redis_host = os.getenv("REDIS_HOST")
+MONGO_PASSWORD = os.getenv('MONGO_PASSWORD')
+redis_host = os.getenv("REDIS_HOST","132.164.200.4")
 redis_password = os.getenv("REDIS_PASSWORD")
 redis_client = redis.Redis(host=redis_host, port=6379, db=0, password=redis_password)
 
