@@ -70,6 +70,10 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections[username] = websocket
         print(f"User ({username}) connected")
+        for un in redis_client.keys("item_*"):
+            print(un)
+            message = f"{redis_client.get(f"{un.decode('utf-8')}").decode('UTF-8')}"
+            await self.active_connections[username].send_text(message)
 
     def disconnect(self, username: str):
         if username in self.active_connections:
