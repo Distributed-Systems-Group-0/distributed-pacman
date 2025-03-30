@@ -1,7 +1,8 @@
-var username = null
+var username = "";
 let ws = null;
 let isWsReady = false;
 let pacmen = {}; // store of all pacmen in the game
+let gameStarted = false;
 
 // Define the grid (1 = wall, 0 = open space)
 const grid = [
@@ -46,8 +47,24 @@ let pacman = {};
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
+    noStroke();
+    frameRate(60);
+    noLoop(); // Wait for user to start the game
+}
 
-    username = prompt("Enter a username!");
+function startGame() {
+    const input = document.getElementById("usernameInput");
+    if (input.value.trim() === "") {
+      alert("Please enter a username");
+      return;
+    }
+  
+    username = input.value.trim();
+    gameStarted = true;
+  
+    document.getElementById("start-screen").style.display = "none";
+    document.querySelector("canvas").style.display = "block";
+
     pacmen = {};
 
     pacman = {
@@ -97,9 +114,8 @@ function setup() {
         }
     };
 
-    noStroke();
-    frameRate(60);
     setRandomPacmanPosition();
+    loop();
 }
 
 function windowResized() {
@@ -108,6 +124,9 @@ function windowResized() {
 
 //draw() function called 60 times in a second. Each call corresponds to a frame.
 function draw() {
+    if (!gameStarted) {
+        return;
+    }
     background(0);
 
     // make maze
