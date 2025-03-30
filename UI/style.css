@@ -1,8 +1,47 @@
 html, body {
+    /*Removes default white spacing and sets a black background (classic Pac-Man style).*/
     margin: 0;
     padding: 0;
-}
-
-canvas {
-    display: block;
+    background-color: black;
+    font-family: Arial, sans-serif;
   }
+  
+  #start-screen {
+    position: absolute;
+    top: 30%;
+    width: 100%;
+    text-align: center;
+    color: white;
+  }
+  
+  
+  #start-screen input {
+    /*Makes the input field look nice and easy to type in.*/
+    padding: 10px;
+    font-size: 18px;
+    width: 250px;
+    max-width: 80%;
+  }
+  
+  #start-screen button {
+    margin-top: 20px;
+    padding: 10px 30px;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  
+
+  #title {
+    font-size: 48px;    
+    font-weight: bold;     
+    color: yellow;       
+    text-align: center;    
+    margin-top: 1px;       
+    
+  }
+
+
+  canvas {
+    display: none; /* Hides canvas until user clicks "Start Game" */
+  }
+  
