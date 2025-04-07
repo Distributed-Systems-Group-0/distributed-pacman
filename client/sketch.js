@@ -1,9 +1,9 @@
 
-let inpt, bttn, screen, socket, gameState, lastKey, server;
+let inpt, bttn, screen, socket, gameState, lastKey, server, currMaze;
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
-    frameRate(60);
+    frameRate(30);
     inpt = createInput();
     inpt.position(20, 20);
     inpt.attribute("placeholder", "username");
@@ -13,7 +13,8 @@ function setup() {
     gameState = null;
     lastKey = "";
     server = "";
-    let connect = (reattempts = 1) => {
+    currMaze = "";
+    let connect = (reattempts = 2) => {
         socket = new WebSocket("/ws/pacman?username=" + inpt.value());
 
         socket.onopen = () => {
@@ -23,9 +24,10 @@ function setup() {
             if (reattempts > 0) {
                 setTimeout(() => {
                     connect(reattempts - 1);
-                }, 100);
+                }, 5);
             } else {
                 screen = 0;
+                reattempts = 2;
             }
         };
         socket.onmessage = (event) => {
@@ -41,6 +43,33 @@ function setup() {
         };
     };
     bttn.mousePressed(connect);
+}
+
+function mousePressed() {
+    let swipeX = mouseX - windowWidth / 2;
+    let swipeY = mouseY - windowHeight * 3 / 4;
+    let mouseKey;
+    if (Math.abs(swipeX) > Math.abs(swipeY)) {
+        if (swipeX > 0) {
+            mouseKey = "ArrowRight";
+        } else {
+            mouseKey = "ArrowLeft";
+        }
+    } else {
+        if (swipeY > 0) {
+            mouseKey = "ArrowDown";
+        } else {
+            mouseKey = "ArrowUp";
+        }
+    }
+    if (screen === 1 && lastKey != mouseKey) {
+        try {
+            socket.send(mouseKey);
+        } catch (err) {
+            console.log("cant send mouse press");
+        }
+        lastKey = mouseKey;
+    }
 }
 
 function keyPressed() {
@@ -74,33 +103,50 @@ function draw() {
             let mazeWidth = frameWidth - margin * 2;
             let tileSize = mazeWidth / maze[0].length;
             let mazeHeight = tileSize * maze.length;
-            drawMaze(margin, margin, tileSize);
+
+            push();
+            translate(-(margin + gameState[inpt.value()].smoothX * tileSize + tileSize / 2), 0);
+            translate(frameWidth / 2, 0);
+            drawMaze(mazeWidth * currMaze + margin, margin, tileSize);
+            drawMaze(mazeWidth * (currMaze + 1) + margin, margin, tileSize);
+            drawMaze(mazeWidth * (currMaze - 1) + margin, margin, tileSize);
+
             if (gameState != null) {
                 for (let pac in gameState) {
-                    drawPacman(margin, margin, tileSize, gameState[pac]);
+                    let thisMaze = Math.floor(gameState[pac].x / maze[0].length);
+                    if (inpt.value() === gameState[pac].username) {
+                        currMaze = thisMaze;
+                    }
+                    if (thisMaze >= currMaze - 1 && thisMaze <= currMaze + 1) {
+                        drawPacman(margin, margin, tileSize, gameState[pac]);
+                    }
                 }
             }
+            pop()
             noStroke();
+            fill(0, 0, 0);
+            rect(frameWidth, 0, mazeWidth * 2, frameHeight);
             fill(255, 255, 255);
             textAlign(LEFT, TOP);
             textSize(tileSize * 3 / 4);
             text("SERVER UUID: " + server, margin + tileSize, margin + mazeHeight + tileSize * 1);
+            text("CURRENT MAZE: " + currMaze, margin + tileSize, margin + mazeHeight + tileSize * 11 / 4);
     }
 }
 
 function drawPacman(mx, my, ts, gs) {
     noStroke();
     fill(255, 255, 0);
-    let x = mx + (gs.smoothX % maze[0].length) * ts + ts / 2;
-    let y = my + (gs.smoothY % maze.length) * ts + ts / 2;
+    let x = mx + gs.smoothX * ts + ts / 2;
+    let y = my + gs.smoothY * ts + ts / 2;
     let g = Math.abs(gs.f - 10) / 10;
     if (g === 0) g = 1 / 10;
     let a1 = g * HALF_PI / 2 + HALF_PI * max(gs.d - 1, 0);
     let a2 = g * - HALF_PI / 2 + HALF_PI * max(gs.d - 1, 0);
     arc(x, y, ts * 3 / 2, ts * 3 / 2, a1, a2, PIE);
     textSize(ts);
-    x = mx + (gs.smoothX % maze[0].length) * ts;
-    y = my + (gs.smoothY % maze.length) * ts - ts * 2;
+    x = mx + gs.smoothX * ts;
+    y = my + gs.smoothY * ts - ts * 2;
     text(gs.username, x, y);
 }
 
