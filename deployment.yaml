@@ -18,10 +18,6 @@ spec:
         ports:
         - containerPort: 80
         env:
-        - name: MONGO_USERNAME
-          value: "<MONGO_USERNAME>"
-        - name: MONGO_PASSWORD
-          value: "<"MONGO_PASSWORD>"
         - name: REDIS_HOST
           value: "redis-master.redis.svc.cluster.local"
         - name: REDIS_PASSWORD

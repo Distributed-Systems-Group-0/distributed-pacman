@@ -1,5 +1,5 @@
 
-let inpt, bttn, screen, socket, gameState, lastKey, server, currMaze;
+let inpt, bttn, screen, socket, gameState, gameStateCopy, lastKey, server, currMaze;
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
@@ -11,6 +11,7 @@ function setup() {
     bttn.position(30 + inpt.width, 20);
     screen = 0;
     gameState = null;
+    gameStateCopy = null;
     lastKey = "";
     server = "";
     currMaze = "";
@@ -34,8 +35,27 @@ function setup() {
             // handle different messages
             let message = JSON.parse(event.data);
             if (message.type === "gamestate") {
-                gameState = message.content;
+                if (gameStateCopy === null) {
+                    gameStateCopy = {};
+                }
+                gameState = {};
+                message.content.forEach(function(item) {
+                    gameState[item.username] = item;
+                });
+                for (let thing in gameState) {
+                    if (!(thing in gameStateCopy)) {
+                        gameStateCopy[thing] = gameState[thing];
+                    } else {
+                        gameStateCopy[thing].x = gameState[thing].x;
+                        gameStateCopy[thing].y = gameState[thing].y;
+                        gameStateCopy[thing].d = gameState[thing].d;
+                    }
+                }
                 server = message.sender;
+
+            }
+            if (message.type === "message") {
+                console.log(message.content);
             }
         };
         socket.onerror = (event) => {
@@ -104,21 +124,37 @@ function draw() {
             let tileSize = mazeWidth / maze[0].length;
             let mazeHeight = tileSize * maze.length;
 
+            if (gameStateCopy != null) {
+                for (let pac in gameStateCopy) {
+                    let x = parseInt(gameStateCopy[pac].x);
+                    let y = parseInt(gameStateCopy[pac].y);
+                    let sx = parseFloat(gameStateCopy[pac].smoothX);
+                    let sy = parseFloat(gameStateCopy[pac].smoothY);
+                    if (abs(sx-x)>0.1 || abs(sy-y)>0.1) {
+                        gameStateCopy[pac].f = (parseInt(gameStateCopy[pac].f) + 1) % 20;
+                    }
+                    gameStateCopy[pac].smoothX = lerp(sx, x, 0.15);
+                    gameStateCopy[pac].smoothY = lerp(sy, y, 0.15);
+                }
+            }
+
             push();
-            translate(-(margin + gameState[inpt.value()].smoothX * tileSize + tileSize / 2), 0);
-            translate(frameWidth / 2, 0);
+            if (gameStateCopy != null) {
+                translate(-(margin + gameStateCopy[inpt.value()].smoothX * tileSize + tileSize / 2), 0);
+                translate(frameWidth / 2, 0);
+            }
             drawMaze(mazeWidth * currMaze + margin, margin, tileSize);
             drawMaze(mazeWidth * (currMaze + 1) + margin, margin, tileSize);
             drawMaze(mazeWidth * (currMaze - 1) + margin, margin, tileSize);
 
-            if (gameState != null) {
-                for (let pac in gameState) {
-                    let thisMaze = Math.floor(gameState[pac].x / maze[0].length);
-                    if (inpt.value() === gameState[pac].username) {
+            if (gameStateCopy != null) {
+                for (let pac in gameStateCopy) {
+                    let thisMaze = Math.floor(gameStateCopy[pac].x / maze[0].length);
+                    if (inpt.value() === gameStateCopy[pac].username) {
                         currMaze = thisMaze;
                     }
                     if (thisMaze >= currMaze - 1 && thisMaze <= currMaze + 1) {
-                        drawPacman(margin, margin, tileSize, gameState[pac]);
+                        drawPacman(margin, margin, tileSize, gameStateCopy[pac]);
                     }
                 }
             }
