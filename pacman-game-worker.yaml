@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pacman-game-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pacman-game-worker
+  template:
+    metadata:
+      labels:
+        app: pacman-game-worker
+    spec:
+      containers:
+      - name: pacman-game-worker
+        image: rwaltertcd/pacman-game-worker:latest
+        env:
+        - name: REDIS_HOST
+          value: "redis-master.redis.svc.cluster.local"
+        - name: REDIS_PASS
+          value: "qH2atSUTfW"

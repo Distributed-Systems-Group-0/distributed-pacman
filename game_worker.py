@@ -21,9 +21,18 @@ def movements():
         try:
             pipe.watch("movements")
             items = pipe.zrange("movements", 0, 0, withscores=True)
-            if len(items) == 0: return
+            if len(items) == 0:
+                return
             item, score = items[0]
-            _, entity, name = item.split(":")
+
+            parts = item.split(":")
+            if len(parts) != 3:
+                print(f"Skipping invalid movement key: {item}")
+                pipe.unwatch()
+                return  # or use 'continue' if iterating over multiple items
+
+            _, entity, name = parts
+
             if score < current_time:
                 pipe.multi()
                 pipe.zrem("movements", item)
