@@ -1,0 +1,15 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: StressChaos
+metadata:
+  name: stress-cpu-game-server
+  namespace: pacman
+spec:
+  mode: all
+  selector:
+    labelSelectors:
+      app: pacman-game-server
+  stressors:
+    cpu:
+      workers: 2
+      load: 78
+  duration: "2m"
