@@ -1,0 +1,12 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: kill-33-percent-game-servers
+  namespace: pacman
+spec:
+  action: pod-kill
+  mode: fixed-percent
+  value: "33"           
+  selector:
+    labelSelectors:
+      app: pacman-game-server

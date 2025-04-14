@@ -17,6 +17,11 @@ spec:
         image: rwaltertcd/pacman-game-server:latest
         ports:
         - containerPort: 8000
+        resources:
+          requests:
+            cpu: "200m"
+          limits:
+            cpu: "800m"
         env:
         - name: REDIS_HOST
           value: "redis-master.redis.svc.cluster.local"  
