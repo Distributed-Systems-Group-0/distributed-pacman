@@ -72,7 +72,7 @@ function setup() {
                     }
                     config.pellets = message.content.pellets;
                     config.leaderboard = message.content.leaderboard;
-                    console.log(config.leaderboard);
+                    // console.log(config.leaderboard);
                     const itemName = "item:player:" + config.username;
                     if (!(itemName in config.objects)) {
                         config.socket.close();
@@ -171,6 +171,7 @@ function draw() {
             let mazeHeight = tileSize * maze.length;
 
             const itemName = "item:player:" + config.username;
+
             if (!(itemName in config.objects)) break;
             const item = config.objects[itemName];
 
@@ -188,7 +189,7 @@ function draw() {
                 if (abs(sx - x) > 2) object.smoothX = object.x;
                 if (abs(sy - y) > 2) object.smoothY = object.y;
             }
-
+            // console.log(config.objects[ghostItemName])
             push();
             translate(-margin, 0);
             translate(-(config.objects[itemName].smoothX + 1 / 2) * tileSize, 0);
@@ -211,7 +212,8 @@ function draw() {
                     tileSize / 3
                 );
             }
-
+            
+            
             drawPacmanandGhosts(margin, margin, tileSize, item);
 
             for (const objectName in config.objects) {

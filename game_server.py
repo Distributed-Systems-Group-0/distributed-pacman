@@ -29,6 +29,7 @@ redis_client = Redis(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        register_ghosts()
         send_task = asyncio.create_task(send_msgs())
         yield
     except CancelledError as e:
@@ -127,45 +128,6 @@ def register(username: str):
         except WatchError:
             print("race condition detected")
             return False
-        
-def register_ghosts(num_ghosts=4):
-    ghost_colors = ["red", "pink", "cyan", "orange"]
-    
-    with redis_client.pipeline() as pipe:
-        # Check if ghosts already exist
-        existing_ghosts = list(redis_client.scan_iter("item:ghost:*"))
-        if existing_ghosts:
-            print(f"Found {len(existing_ghosts)} existing ghosts")
-            return
-            
-        ct_s, ct_ms = redis_client.time()
-        current_time = ct_s + ct_ms / 1_000_000        
-        for i in range(num_ghosts):
-            ghost_name = f"ghost{i+1}"
-            ghost_color = ghost_colors[i % len(ghost_colors)]            
-            # Place ghosts in the ghost house initially
-            if i == 0:  
-                x, y = 13, 14  
-            elif i == 1:
-                x, y = 14, 14
-            elif i == 2:
-                x, y = 13, 15
-            elif i == 3:
-                x, y = 14, 15
-                
-            ghost = {
-                "username": ghost_name,
-                "x": x, "y": y,
-                "smoothX": x, "smoothY": y,
-                "f": 0, "n": 0, "d": random.randint(1, 4),
-                "color": ghost_color,
-            }
-            
-            pipe.hset(f"item:ghost:{ghost_name}", mapping=ghost)
-            pipe.zadd("movements", {f"item:ghost:{ghost_name}": current_time})
-        
-        pipe.execute()
-        print(f"Created {num_ghosts} ghosts")
 
 def register_ghosts(num_ghosts=4):
     ghost_colors = ["red", "pink", "cyan", "orange"]
@@ -182,26 +144,16 @@ def register_ghosts(num_ghosts=4):
         for i in range(num_ghosts):
             ghost_name = f"ghost{i+1}"
             ghost_color = ghost_colors[i % len(ghost_colors)]            
-            # Place ghosts in the ghost house initially
-            if i == 0:  
-                x, y = 13, 14  
-            elif i == 1:
-                x, y = 14, 14
-            elif i == 2:
-                x, y = 13, 15
-            elif i == 3:
-                x, y = 14, 15
-                
+            x,y = 13,11
+            random_direction = random.choice([1,3])
             ghost = {
                 "username": ghost_name,
                 "x": x, "y": y,
                 "smoothX": x, "smoothY": y,
-                "f": 0, "n": 0, "d": random.randint(1, 4),
+                "f": 0, "n": random_direction, "d": random_direction,
                 "color": ghost_color,
                 "mazeId": 0,  # Current maze ID (for infinite mazes)
-
             }
-            
             pipe.hset(f"item:ghost:{ghost_name}", mapping=ghost)
             pipe.zadd("movements", {f"item:ghost:{ghost_name}": current_time})
         
@@ -304,4 +256,3 @@ maze = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 ]
 
-register_ghosts()

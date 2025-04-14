@@ -1,4 +1,5 @@
 import os
+import random
 import time
 
 from redis import Redis, WatchError
@@ -37,6 +38,8 @@ def movements():
             _, entity, name = parts
 
             if score < current_time:
+                # if entity == 'ghost':
+                #     print("ghost here")
                 pipe.multi()
                 pipe.zrem("movements", item)
                 pipe.hget(item, "n")
@@ -48,7 +51,10 @@ def movements():
                 n, d, x, y = int(n), int(d), int(x), int(y)
                 pipe.sismember("pellets", f"{x},{y}")
                 p = pipe.execute()[0]
-                if is_valid_move(n, x, y):
+                
+                if is_valid_move(n, x, y,entity):
+                    if entity == 'ghost':
+                        print("ghost here")
                     pipe.hset(item, "d", n)
                     new_x, new_y = calculate_new_position(n, x, y)
                     pipe.hset(item, "x", new_x)
@@ -65,22 +71,50 @@ def movements():
                     if not p and entity == "player":
                         pipe.sadd("pellets", f"{x},{y}")
                         pipe.zincrby("leaderboard", 10, name)
+                elif entity == 'ghost':
+                    new_n_choices = get_valid_directions(x,y)
+                    new_n = random.choice(new_n_choices)
+                    pipe.hset(item, "n", new_n)
+                    pipe.hset(item, "d", new_n)
+                    # print(f"new n choice {new_n_choices}")
                 score = current_time + 0.2
                 pipe.zadd("movements", {item: score})
                 pipe.execute()
-        except WatchError:
+        except WatchError as e:
+            # print(e.with_traceback())
             print("movements race condition detected")
 
-def is_valid_move(direction, x, y):
-    if direction == 1:
-        return maze[y % len(maze)][(x + 1) % len(maze[0])] == 0
-    elif direction == 2:
-        return maze[(y + 1) % len(maze)][x % len(maze[0])] == 0
-    elif direction == 3:
-        return maze[y % len(maze)][(x - 1) % len(maze[0])] == 0
-    elif direction == 4:
-        return maze[(y - 1) % len(maze)][x % len(maze[0])] == 0
-    return False
+
+
+def get_valid_directions(x, y):
+    """Get list of valid directions from current position"""
+    valid = []
+    for direction in range(1, 5):
+        if is_valid_move(direction, x, y):
+            valid.append(direction)
+    return valid
+     
+def is_valid_move(direction, x, y, entity = 'player'):
+    if entity == 'player':
+        if direction == 1:
+            return maze[y % len(maze)][(x + 1) % len(maze[0])] == 0
+        elif direction == 2:
+            return maze[(y + 1) % len(maze)][x % len(maze[0])] == 0
+        elif direction == 3:
+            return maze[y % len(maze)][(x - 1) % len(maze[0])] == 0
+        elif direction == 4:
+            return maze[(y - 1) % len(maze)][x % len(maze[0])] == 0
+        return False
+    # elif entity == 'ghost':
+    #     if direction == 1:
+    #         return maze[y % len(maze)][(x + 1) % len(maze[0])] == 3
+    #     elif direction == 2:
+    #         return maze[(y + 1) % len(maze)][x % len(maze[0])] == 3
+    #     elif direction == 3:
+    #         return maze[y % len(maze)][(x - 1) % len(maze[0])] == 3
+    #     elif direction == 4:
+    #         return maze[(y - 1) % len(maze)][x % len(maze[0])] == 3
+    #     return False
 
 def calculate_new_position(direction, x, y):
     if direction == 1:
@@ -130,6 +164,7 @@ maze = [
 while True:
     try:
         movements()
+        # ghost_movements()
         time.sleep(0.01)
     except KeyboardInterrupt:
         print("program interrupted")
