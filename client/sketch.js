@@ -212,11 +212,11 @@ function draw() {
                 );
             }
 
-            drawPacman(margin, margin, tileSize, item);
+            drawPacmanandGhosts(margin, margin, tileSize, item);
 
             for (const objectName in config.objects) {
                 const object = config.objects[objectName];
-                drawPacman(margin, margin, tileSize, object);
+                drawPacmanandGhosts(margin, margin, tileSize, object);
             }
 
             pop();
@@ -276,9 +276,30 @@ function draw() {
     }
 }
 
-function drawPacman(mx, my, ts, gs) {
+function drawPacmanandGhosts(mx, my, ts, gs) {
     noStroke();
-    fill(255, 255, 0);
+    
+    if (gs.color) {
+        switch (gs.color) {
+            case "red":
+                fill(255, 0, 0);
+                break;
+            case "pink":
+                fill(255, 192, 203);
+                break;
+            case "cyan":
+                fill(0, 255, 255);
+                break;
+            case "orange":
+                fill(255, 165, 0);
+                break;
+            default:
+                fill(255, 0, 0); 
+        }
+    } else {
+        fill(255, 255, 0);
+    }
+    
     let x = mx + gs.smoothX * ts + ts / 2;
     let y = my + gs.smoothY * ts + ts / 2;
     let g = Math.abs(gs.f - 10) / 10;
@@ -286,10 +307,15 @@ function drawPacman(mx, my, ts, gs) {
     let a1 = g * HALF_PI / 2 + HALF_PI * max(gs.d - 1, 0);
     let a2 = g * - HALF_PI / 2 + HALF_PI * max(gs.d - 1, 0);
     arc(x, y, ts * 3 / 2, ts * 3 / 2, a1, a2, PIE);
-    textSize(ts);
-    x = mx + gs.smoothX * ts;
-    y = my + gs.smoothY * ts - ts * 2;
-    text(gs.username, x, y);
+    
+    // Show player name above
+    if (!gs.color){
+        textSize(ts);
+        fill(255); 
+        x = mx + gs.smoothX * ts;
+        y = my + gs.smoothY * ts - ts * 2;
+        text(gs.username, x, y);
+    }
 }
 
 function drawMaze(mx, my, ts) {

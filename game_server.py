@@ -13,6 +13,8 @@ from fastapi.staticfiles import StaticFiles
 from redis import WatchError
 from redis import Redis
 
+# REDIS_HOST = os.getenv("REDIS_HOST", "132.164.200.4")
+# REDIS_PASS = os.getenv("REDIS_PASS", "qH2atSUTfW")
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PASS = os.getenv("REDIS_PASS", None)
 
@@ -125,6 +127,86 @@ def register(username: str):
         except WatchError:
             print("race condition detected")
             return False
+        
+def register_ghosts(num_ghosts=4):
+    ghost_colors = ["red", "pink", "cyan", "orange"]
+    
+    with redis_client.pipeline() as pipe:
+        # Check if ghosts already exist
+        existing_ghosts = list(redis_client.scan_iter("item:ghost:*"))
+        if existing_ghosts:
+            print(f"Found {len(existing_ghosts)} existing ghosts")
+            return
+            
+        ct_s, ct_ms = redis_client.time()
+        current_time = ct_s + ct_ms / 1_000_000        
+        for i in range(num_ghosts):
+            ghost_name = f"ghost{i+1}"
+            ghost_color = ghost_colors[i % len(ghost_colors)]            
+            # Place ghosts in the ghost house initially
+            if i == 0:  
+                x, y = 13, 14  
+            elif i == 1:
+                x, y = 14, 14
+            elif i == 2:
+                x, y = 13, 15
+            elif i == 3:
+                x, y = 14, 15
+                
+            ghost = {
+                "username": ghost_name,
+                "x": x, "y": y,
+                "smoothX": x, "smoothY": y,
+                "f": 0, "n": 0, "d": random.randint(1, 4),
+                "color": ghost_color,
+            }
+            
+            pipe.hset(f"item:ghost:{ghost_name}", mapping=ghost)
+            pipe.zadd("movements", {f"item:ghost:{ghost_name}": current_time})
+        
+        pipe.execute()
+        print(f"Created {num_ghosts} ghosts")
+
+def register_ghosts(num_ghosts=4):
+    ghost_colors = ["red", "pink", "cyan", "orange"]
+    
+    with redis_client.pipeline() as pipe:
+        # Check if ghosts already exist
+        existing_ghosts = list(redis_client.scan_iter("item:ghost:*"))
+        if existing_ghosts:
+            print(f"Found {len(existing_ghosts)} existing ghosts")
+            return
+            
+        ct_s, ct_ms = redis_client.time()
+        current_time = ct_s + ct_ms / 1_000_000        
+        for i in range(num_ghosts):
+            ghost_name = f"ghost{i+1}"
+            ghost_color = ghost_colors[i % len(ghost_colors)]            
+            # Place ghosts in the ghost house initially
+            if i == 0:  
+                x, y = 13, 14  
+            elif i == 1:
+                x, y = 14, 14
+            elif i == 2:
+                x, y = 13, 15
+            elif i == 3:
+                x, y = 14, 15
+                
+            ghost = {
+                "username": ghost_name,
+                "x": x, "y": y,
+                "smoothX": x, "smoothY": y,
+                "f": 0, "n": 0, "d": random.randint(1, 4),
+                "color": ghost_color,
+                "mazeId": 0,  # Current maze ID (for infinite mazes)
+
+            }
+            
+            pipe.hset(f"item:ghost:{ghost_name}", mapping=ghost)
+            pipe.zadd("movements", {f"item:ghost:{ghost_name}": current_time})
+        
+        pipe.execute()
+        print(f"Created {num_ghosts} ghosts")        
 
 async def send_msgs():
     while True:
@@ -221,3 +303,5 @@ maze = [
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 ]
+
+register_ghosts()

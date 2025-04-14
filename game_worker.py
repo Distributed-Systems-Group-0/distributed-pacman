@@ -3,6 +3,9 @@ import time
 
 from redis import Redis, WatchError
 
+# REDIS_HOST = os.getenv("REDIS_HOST", "132.164.200.4")
+# REDIS_PASS = os.getenv("REDIS_PASS", "qH2atSUTfW")
+
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PASS = os.getenv("REDIS_PASS", None)
 
@@ -53,7 +56,7 @@ def movements():
                     print(f"turned {item}")
                     if not p and entity == "player":
                         pipe.sadd("pellets", f"{x},{y}")
-                        pipe.zincrby("leaderboard", 100, name)
+                        pipe.zincrby("leaderboard", 10, name)
                 elif is_valid_move(d, x, y):
                     new_x, new_y = calculate_new_position(d, x, y)
                     pipe.hset(item, "x", new_x)
@@ -61,7 +64,7 @@ def movements():
                     print(f"moved {item}")
                     if not p and entity == "player":
                         pipe.sadd("pellets", f"{x},{y}")
-                        pipe.zincrby("leaderboard", 100, name)
+                        pipe.zincrby("leaderboard", 10, name)
                 score = current_time + 0.2
                 pipe.zadd("movements", {item: score})
                 pipe.execute()
