@@ -62,6 +62,7 @@ function setup() {
                 case "state":
                     config.serverUUID = message.content.serverUUID;
                     for (const objectName of Object.keys(message.content.objects)) {
+                        console.log(objectName)
                         if (objectName in config.objects) {
                             config.objects[objectName].x = message.content.objects[objectName].x;
                             config.objects[objectName].y = message.content.objects[objectName].y;
@@ -70,6 +71,12 @@ function setup() {
                             config.objects[objectName] = message.content.objects[objectName];
                         }
                     }
+                    for (const objectName of Object.keys(config.objects)){
+                        if (!(objectName in message.content.objects)){
+                            delete config.objects[objectName]
+                        }
+                    }
+
                     config.pellets = message.content.pellets;
                     config.leaderboard = message.content.leaderboard;
                     // console.log(config.leaderboard);
@@ -269,12 +276,7 @@ function draw() {
                     margin + mazeHeight + tileSize * (8 + i)
                 );
             }
-
-            // fill(255);
-            // noStroke();
-            // textAlign(LEFT, TOP);
-            // textSize(32);
-            break;
+        break;
     }
 }
 

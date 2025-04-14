@@ -28,7 +28,10 @@ def movements():
             if len(items) == 0:
                 return
             item, score = items[0]
-
+            if redis_client.hlen(item) == 0:
+                pipe.zrem('movements',item)
+                pipe.execute()
+                return
             parts = item.split(":")
             if len(parts) != 3:
                 print(f"Skipping invalid movement key: {item}")
@@ -36,10 +39,8 @@ def movements():
                 return  # or use 'continue' if iterating over multiple items
 
             _, entity, name = parts
-
+            
             if score < current_time:
-                # if entity == 'ghost':
-                #     print("ghost here")
                 pipe.multi()
                 pipe.zrem("movements", item)
                 pipe.hget(item, "n")
@@ -52,6 +53,24 @@ def movements():
                 pipe.sismember("pellets", f"{x},{y}")
                 p = pipe.execute()[0]
                 
+                if entity=='player':
+                    collisions = set()
+                    new_px, new_py = calculate_new_position(d,x,y)
+                    for key in redis_client.scan_iter("item:ghost:*"):
+                        pipe.hmget(key, ['x','y'])
+                        list_XY = pipe.execute()[0]
+                        if f"{list_XY[0]},{list_XY[1]}" == f"{x},{y}":
+                            collisions.add(key)
+
+                            print(f"Collision1: {collisions}")
+                        elif f"{list_XY[0]},{list_XY[1]}" == f"{new_px},{new_py}":
+                            collisions.add(key)
+                            print(f"Collision2: {collisions}")
+                    pipe.zincrby('leaderboard', len(collisions)*100, name)
+                    for collision in collisions:
+                        pipe.delete(collision)
+                    pipe.execute()
+
                 if is_valid_move(n, x, y,entity):
                     if entity == 'ghost':
                         print("ghost here")
@@ -105,16 +124,6 @@ def is_valid_move(direction, x, y, entity = 'player'):
         elif direction == 4:
             return maze[(y - 1) % len(maze)][x % len(maze[0])] == 0
         return False
-    # elif entity == 'ghost':
-    #     if direction == 1:
-    #         return maze[y % len(maze)][(x + 1) % len(maze[0])] == 3
-    #     elif direction == 2:
-    #         return maze[(y + 1) % len(maze)][x % len(maze[0])] == 3
-    #     elif direction == 3:
-    #         return maze[y % len(maze)][(x - 1) % len(maze[0])] == 3
-    #     elif direction == 4:
-    #         return maze[(y - 1) % len(maze)][x % len(maze[0])] == 3
-    #     return False
 
 def calculate_new_position(direction, x, y):
     if direction == 1:
