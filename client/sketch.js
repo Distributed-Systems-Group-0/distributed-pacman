@@ -1,4 +1,4 @@
-
+ 
 /// <reference path="global.d.ts"/>
 
 const config = {
@@ -223,7 +223,7 @@ function draw() {
 
             noStroke();
             fill(0, 0, 0);
-            rect(frameWidth, 0, mazeWidth * 2, frameHeight);
+            rect(frameWidth, 0, mazeWidth * 5, frameHeight);
 
             textAlign(LEFT, TOP);
             noStroke();
@@ -231,11 +231,14 @@ function draw() {
             textSize(tileSize);
             const abbrUUID = config.serverUUID.substring(0, 20);
             const textContent = `SERVER UUID: ${abbrUUID}...`;
+
             text(
                 textContent,
                 margin + tileSize,
                 margin + mazeHeight + tileSize
             );
+            text("CURRENT MAZE: " + currMaze, margin + tileSize, margin + mazeHeight + tileSize * 11 / 4);
+
 
             stroke(255);
             strokeWeight(tileSize / 10)
@@ -244,7 +247,7 @@ function draw() {
             text(
                 "GLOBAL LEADERBOARD",
                 margin + tileSize,
-                margin + mazeHeight + tileSize * 3
+                margin + mazeHeight + tileSize * 5
             )
 
             noStroke();
@@ -255,13 +258,13 @@ function draw() {
                 text(
                     config.leaderboard[i][0],
                     margin + tileSize,
-                    margin + mazeHeight + tileSize * (6 + i)
+                    margin + mazeHeight + tileSize * (8 + i)
                 );
                 textAlign(RIGHT, TOP);
                 text(
                     config.leaderboard[i][1],
                     margin + tileSize * 12,
-                    margin + mazeHeight + tileSize * (6 + i)
+                    margin + mazeHeight + tileSize * (8 + i)
                 );
             }
 
