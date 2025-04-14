@@ -23,6 +23,7 @@ def movements():
             items = pipe.zrange("movements", 0, 0, withscores=True)
             if len(items) == 0: return
             item, score = items[0]
+            _, entity, name = item.split(":")
             if score < current_time:
                 pipe.multi()
                 pipe.zrem("movements", item)
@@ -33,17 +34,25 @@ def movements():
                 response = pipe.execute()
                 n, d, x, y = response[1:5]
                 n, d, x, y = int(n), int(d), int(x), int(y)
+                pipe.sismember("pellets", f"{x},{y}")
+                p = pipe.execute()[0]
                 if is_valid_move(n, x, y):
                     pipe.hset(item, "d", n)
                     new_x, new_y = calculate_new_position(n, x, y)
                     pipe.hset(item, "x", new_x)
                     pipe.hset(item, "y", new_y)
                     print(f"turned {item}")
+                    if not p and entity == "player":
+                        pipe.sadd("pellets", f"{x},{y}")
+                        pipe.zincrby("leaderboard", 100, name)
                 elif is_valid_move(d, x, y):
                     new_x, new_y = calculate_new_position(d, x, y)
                     pipe.hset(item, "x", new_x)
                     pipe.hset(item, "y", new_y)
                     print(f"moved {item}")
+                    if not p and entity == "player":
+                        pipe.sadd("pellets", f"{x},{y}")
+                        pipe.zincrby("leaderboard", 100, name)
                 score = current_time + 0.2
                 pipe.zadd("movements", {item: score})
                 pipe.execute()

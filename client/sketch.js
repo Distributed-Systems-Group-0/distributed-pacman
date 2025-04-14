@@ -11,7 +11,8 @@ const config = {
     serverUUID: "",
     objects: {},
     pellets: {},
-    username: ""
+    username: "",
+    leaderboard: {}
 }
 
 function setup() {
@@ -53,6 +54,7 @@ function setup() {
 
             config.objects = {};
             config.pellets = {};
+            config.leaderboard = {};
         };
         config.socket.onmessage = (event) => {
             const message = JSON.parse(event.data);
@@ -69,6 +71,8 @@ function setup() {
                         }
                     }
                     config.pellets = message.content.pellets;
+                    config.leaderboard = message.content.leaderboard;
+                    console.log(config.leaderboard);
                     const itemName = "item:player:" + config.username;
                     if (!(itemName in config.objects)) {
                         config.socket.close();
@@ -144,6 +148,10 @@ function windowResized() {
     resizeCanvas(windowWidth, windowHeight);
 }
 
+function mod(n, m) {
+    return ((n % m) + m) % m;
+}
+
 function draw() {
     background(0);
     switch (config.screen) {
@@ -177,8 +185,8 @@ function draw() {
                 }
                 config.objects[objectName].smoothX = lerp(sx, x, 0.15);
                 config.objects[objectName].smoothY = lerp(sy, y, 0.15);
-                if (abs(sx-x)>2) object.smoothX = object.x;
-                if (abs(sy-y)>2) object.smoothY = object.y;
+                if (abs(sx - x) > 2) object.smoothX = object.x;
+                if (abs(sy - y) > 2) object.smoothY = object.y;
             }
 
             push();
@@ -190,6 +198,19 @@ function draw() {
             drawMaze(mazeWidth * currMaze + margin, margin, tileSize);
             drawMaze(mazeWidth * (currMaze + 1) + margin, margin, tileSize);
             drawMaze(mazeWidth * (currMaze - 1) + margin, margin, tileSize);
+
+            // pellets
+            for (const pair of config.pellets) {
+                const x = pair[0];
+                const y = pair[1];
+                noStroke();
+                fill(255, 255, 0);
+                circle(
+                    margin + tileSize * (x + 1 / 2),
+                    margin + tileSize * (y + 1 / 2),
+                    tileSize / 3
+                );
+            }
 
             drawPacman(margin, margin, tileSize, item);
 
@@ -215,6 +236,34 @@ function draw() {
                 margin + tileSize,
                 margin + mazeHeight + tileSize
             );
+
+            stroke(255);
+            strokeWeight(tileSize / 10)
+            noFill();
+            textSize(tileSize * 2);
+            text(
+                "GLOBAL LEADERBOARD",
+                margin + tileSize,
+                margin + mazeHeight + tileSize * 3
+            )
+
+            noStroke();
+            fill(255);
+            textSize(tileSize);
+            for (let i = 0; i < config.leaderboard.length; i++) {
+                textAlign(LEFT, TOP);
+                text(
+                    config.leaderboard[i][0],
+                    margin + tileSize,
+                    margin + mazeHeight + tileSize * (6 + i)
+                );
+                textAlign(RIGHT, TOP);
+                text(
+                    config.leaderboard[i][1],
+                    margin + tileSize * 12,
+                    margin + mazeHeight + tileSize * (6 + i)
+                );
+            }
 
             // fill(255);
             // noStroke();

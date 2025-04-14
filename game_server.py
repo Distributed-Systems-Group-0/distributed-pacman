@@ -117,6 +117,7 @@ def register(username: str):
                 pipe.multi()
                 pipe.hset(f"item:player:{username}", mapping=pacman)
                 pipe.zadd("movements", {f"item:player:{username}": current_time})
+                pipe.zadd("leaderboard", {f"{username}": 0})
                 pipe.execute()
                 print("hash created")
             else: print("hash already exists")
@@ -136,13 +137,18 @@ async def send_msgs():
                 result = pipe.execute()
                 objects = {key: item for key, item in zip(keys, result)}
                 for client in clients:
+                    pipe.hget(f"item:player:{client}", "x")
+                    x = int(pipe.execute()[0])
+                    pipe.zrange("leaderboard", 0, -1, True, True)
+                    lb = pipe.execute()[0]
                     try:
                         await clients[client].send_json({
                             "type": "state",
                             "content": {
                                 "serverUUID": instance_uuid,
-                                "pellets": dict(),
-                                "objects": objects
+                                "pellets": pellets_spaces(x),
+                                "objects": objects,
+                                "leaderboard": lb
                             }
                         })
                     except Exception:
@@ -162,6 +168,18 @@ async def recv_msgs(ws: WebSocket, username: str):
     except WebSocketDisconnect:
         return
 
+def pellets_spaces(x: int):
+    coords = redis_client.smembers('pellets')
+    empty_spaces = {
+        (int(coord.split(',')[0]), int(coord.split(',')[1]))
+        for coord in coords}
+    open_spaces = {
+        (i, j)
+        for i in range(x-len(maze[0]),x+len(maze[0]))
+        for j in range(len(maze))
+        if maze[j % len(maze)][i % len(maze[0])] == 0}
+    return list(open_spaces - empty_spaces)
+
 def random_location():
     open_spaces = [
         (i,j)
@@ -174,7 +192,7 @@ maze = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1],
-    [1, 0, 1, 2, 2, 1, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1, 2, 2, 1, 0, 1],
+    [1, 0, 1, 2, 2, 1, 0, 1, 2, 2, 2, 1, 0, 1, 1, 0, 1, 2, 2, 2, 1, 0, 1, 2, 2, 1, 0, 1],
     [1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1],
     [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
     [1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1],
