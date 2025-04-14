@@ -1,32 +1,52 @@
 import asyncio
-import datetime
 import os
 import random
 import uuid
 
-import fastapi
-import redis
-
+from asyncio import CancelledError
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.concurrency import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.params import Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from fastapi import WebSocket, WebSocketDisconnect, Query
+from redis import WatchError
+from redis import Redis
 
-from datetime import datetime
-from datetime import timedelta
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PASS = os.getenv("REDIS_PASS", None)
 
-REDIS_HOST = os.getenv("REDIS_HOST")
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-
-redis_client = redis.Redis(
+redis_client = Redis(
     host=REDIS_HOST,
-    password=REDIS_PASSWORD,
+    password=REDIS_PASS,
     port=6379,
     db=0,
     decode_responses=True
 )
 
-app = fastapi.FastAPI()
-app.mount("/static", StaticFiles(directory="client"), name="static")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        send_task = asyncio.create_task(send_msgs())
+        yield
+    except CancelledError as e:
+        pass
+    finally:
+        send_task.cancel()
+
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+app.mount(
+    "/static",
+    StaticFiles(directory="client"),
+    name="static"
+)
 
 instance_uuid = str(uuid.uuid4())
 
@@ -36,47 +56,57 @@ clients: dict[str, WebSocket] = dict()
 async def root():
     return FileResponse("client/index.html")
 
+un_query = Query(
+    ...,
+    min_length=3,
+    max_length=10,
+    regex="^[0-9a-zA-Z]+$"
+)
+
 @app.websocket("/ws/pacman")
 async def websocket_endpoint(
     ws: WebSocket,
-    username: str = Query(..., min_length=3, max_length=10, regex="^[0-9a-zA-Z]+$")
+    username: str = un_query
 ):
-    vacant = redis_client.set(f"conn:{username}", "locked", nx=True, ex=1)
-
-    if vacant:
-        await ws.accept()
-        clients[username] = ws
-    else:
+    key = f"conn:{username}"
+    good = redis_client.set(key, "lock", nx=True, ex=1)
+    if not good:
+        print(f"{username} not good")
+        await ws.close()
         return
-
+    await ws.accept()
+    clients[username] = ws
+    if not register(username):
+        print(f"{username} not register")
+        await ws.close()
+        return
+    recv_task = asyncio.create_task(recv_msgs(ws, username))
     try:
-        register(username)
+        ping = {"type": "ping"}
         while True:
-            redis_client.expire(f"conn:{username}", 1)
-            data = await ws.receive_text()
-            controls = {
-                "ArrowRight": 1,
-                "ArrowDown" : 2,
-                "ArrowLeft": 3,
-                "ArrowUp": 4
-            }
-            redis_client.hset(f"item:{username}", "n", controls[data])
-            print(f"{username} input {controls[data]}")
-
+            await ws.send_json(ping)
+            redis_client.expire(key, 1)
+            await asyncio.sleep(0.1)
     except WebSocketDisconnect:
-        print(f"{username} disconnected")
-
+        pass
+    except RuntimeError:
+        pass
+    except CancelledError:
+        pass
+    except KeyboardInterrupt:
+        pass
     finally:
-        clients.pop(username, None)
-        redis_client.delete(f"conn:{username}")
+        recv_task.cancel()
+        del clients[username]
+        redis_client.delete(key)
 
-def register(username):
+def register(username: str):
     ct_s, ct_ms = redis_client.time()
     current_time = ct_s + ct_ms / 1_000_000
     with redis_client.pipeline() as pipe:
         try:
-            pipe.watch(f"item:{username}")
-            if not pipe.exists(f"item:{username}"):
+            pipe.watch(f"item:player:{username}")
+            if not pipe.exists(f"item:player:{username}"):
                 (x, y) = random_location()
                 pacman = {
                     "username": username,
@@ -85,15 +115,52 @@ def register(username):
                     "f": 0, "n": 0, "d": 0
                 }
                 pipe.multi()
-                pipe.hset(f"item:{username}", mapping=pacman)
-                pipe.zadd("movements", {f"item:{username}": current_time})
-                pipe.zadd("updates", {f"item:{username}": current_time})
+                pipe.hset(f"item:player:{username}", mapping=pacman)
+                pipe.zadd("movements", {f"item:player:{username}": current_time})
                 pipe.execute()
                 print("hash created")
-            else:
-                print("hash already exists")
-        except redis.WatchError:
+            else: print("hash already exists")
+            return True
+        except WatchError:
             print("race condition detected")
+            return False
+
+async def send_msgs():
+    while True:
+        try:
+            while True:
+                pipe = redis_client.pipeline()
+                keys = list(redis_client.scan_iter("item:*"))
+                for key in keys:
+                    pipe.hgetall(key)
+                result = pipe.execute()
+                objects = {key: item for key, item in zip(keys, result)}
+                for client in clients:
+                    try:
+                        await clients[client].send_json({
+                            "type": "state",
+                            "content": {
+                                "serverUUID": instance_uuid,
+                                "pellets": dict(),
+                                "objects": objects
+                            }
+                        })
+                    except Exception:
+                        pass
+                await asyncio.sleep(0.01)
+        except Exception as e:
+            print(f"hello world {e}")
+
+async def recv_msgs(ws: WebSocket, username: str):
+    try:
+        while True:
+            data = await ws.receive_text()
+            key = f"item:player:{username}"
+            redis_client.hset(key, "n", data)
+    except CancelledError:
+        return
+    except WebSocketDisconnect:
+        return
 
 def random_location():
     open_spaces = [
@@ -102,36 +169,6 @@ def random_location():
         for j in range(len(maze))
         if maze[j][i] == 0 ]
     return random.choice(open_spaces)
-
-async def send_messages():
-    try:
-        while True:
-            with redis_client.pipeline() as pipe:
-                try:
-                    pipe.watch("item:*")
-                    while True:
-                        pass
-                except redis.WatchError:
-                    for key in redis_client.scan_iter("item:*"):
-                        pipe.hgetall(key)
-                    content = pipe.execute()
-            message = {
-                "type": "gamestate",
-                "sender": instance_uuid,
-                "content": content
-            }
-            for client in clients:
-                await clients[client].send_json(message)
-            await asyncio.sleep(0.01)
-    except asyncio.CancelledError:
-        print("send_messages task cancelled")
-    except WebSocketDisconnect:
-        print("send_messages task websocket disconnect")
-
-app.add_event_handler(
-    "startup",
-    lambda: asyncio.create_task(send_messages())
-)
 
 maze = [
     [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],

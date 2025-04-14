@@ -1,105 +1,142 @@
 
-let inpt, bttn, screen, socket, gameState, gameStateCopy, lastKey, server, currMaze;
+/// <reference path="global.d.ts"/>
+
+const config = {
+    inpt: null,
+    bttn: null,
+    lastKey: 0,
+    screen: 0,
+    socket: null,
+    socketOpened: false,
+    serverUUID: "",
+    objects: {},
+    pellets: {},
+    username: ""
+}
 
 function setup() {
     createCanvas(windowWidth, windowHeight);
     frameRate(30);
-    inpt = createInput();
-    inpt.position(20, 20);
-    inpt.attribute("placeholder", "username");
-    bttn = createButton("play");
-    bttn.position(30 + inpt.width, 20);
-    screen = 0;
-    gameState = null;
-    gameStateCopy = null;
-    lastKey = "";
-    server = "";
-    currMaze = "";
+
+    config.inpt = createInput();
+    config.bttn = createButton("play");
+
+    config.inpt.position(20, 20);
+    config.inpt.attribute("placeholder", "username");
+    config.inpt.input(() => {
+        let val = config.inpt.value();
+        val = val.replace(/[^0-9a-zA-Z]/g, "");
+        val = val.substring(0, 7);
+        config.inpt.value(val);
+    });
+    config.bttn.position(30 + config.inpt.width, 20);
+
     let connect = (reattempts = 2) => {
-        socket = new WebSocket("/ws/pacman?username=" + inpt.value());
-
-        socket.onopen = () => {
-            screen = 1;
+        let address = "/ws/pacman?username="
+        config.username = config.inpt.value();
+        config.socket = new WebSocket(address + config.username);
+        config.socket.onopen = () => {
+            config.screen = 1;
+            config.socketOpened = true;
         };
-        socket.onclose = () => {
+        config.socket.onclose = () => {
+            if (config.socketOpened === false) return;
             if (reattempts > 0) {
-                setTimeout(() => {
-                    connect(reattempts - 1);
-                }, 5);
-            } else {
-                screen = 0;
-                reattempts = 2;
+                const delay = (3 - reattempts) * 100;
+                setTimeout(() => connect(reattempts - 1), delay);
+                return;
             }
-        };
-        socket.onmessage = (event) => {
-            // handle different messages
-            let message = JSON.parse(event.data);
-            if (message.type === "gamestate") {
-                if (gameStateCopy === null) {
-                    gameStateCopy = {};
-                }
-                gameState = {};
-                message.content.forEach(function(item) {
-                    gameState[item.username] = item;
-                });
-                for (let thing in gameState) {
-                    if (!(thing in gameStateCopy)) {
-                        gameStateCopy[thing] = gameState[thing];
-                    } else {
-                        gameStateCopy[thing].x = gameState[thing].x;
-                        gameStateCopy[thing].y = gameState[thing].y;
-                        gameStateCopy[thing].d = gameState[thing].d;
-                    }
-                }
-                server = message.sender;
 
-            }
-            if (message.type === "message") {
-                console.log(message.content);
+            config.screen = 0;
+            config.socketOpened = false;
+            reattempts = 2;
+
+            config.objects = {};
+            config.pellets = {};
+        };
+        config.socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            switch (message.type) {
+                case "state":
+                    config.serverUUID = message.content.serverUUID;
+                    for (const objectName of Object.keys(message.content.objects)) {
+                        if (objectName in config.objects) {
+                            config.objects[objectName].x = message.content.objects[objectName].x;
+                            config.objects[objectName].y = message.content.objects[objectName].y;
+                            config.objects[objectName].d = message.content.objects[objectName].d;
+                        } else {
+                            config.objects[objectName] = message.content.objects[objectName];
+                        }
+                    }
+                    config.pellets = message.content.pellets;
+                    const itemName = "item:player:" + config.username;
+                    if (!(itemName in config.objects)) {
+                        config.socket.close();
+                    }
+                    break;
+                case "message":
+                    console.log(message.content);
+                    break;
+                case "ping":
+                    break;
+                default:
+                    console.log("unknown server response");
             }
         };
-        socket.onerror = (event) => {
+        config.socket.onerror = () => {
             //
         };
     };
-    bttn.mousePressed(connect);
+
+    config.bttn.mousePressed(connect);
 }
 
 function mousePressed() {
-    let swipeX = mouseX - windowWidth / 2;
-    let swipeY = mouseY - windowHeight * 3 / 4;
-    let mouseKey;
-    if (Math.abs(swipeX) > Math.abs(swipeY)) {
-        if (swipeX > 0) {
-            mouseKey = "ArrowRight";
-        } else {
-            mouseKey = "ArrowLeft";
-        }
-    } else {
-        if (swipeY > 0) {
-            mouseKey = "ArrowDown";
-        } else {
-            mouseKey = "ArrowUp";
-        }
-    }
-    if (screen === 1 && lastKey != mouseKey) {
-        try {
-            socket.send(mouseKey);
-        } catch (err) {
-            console.log("cant send mouse press");
-        }
-        lastKey = mouseKey;
+    if (config.screen != 1) return;
+
+    const swipeX = mouseX - windowWidth / 2;
+    const swipeY = mouseY - windowHeight * 3 / 4;
+
+    const mouseKey = Math.abs(swipeX) > Math.abs(swipeY)
+        ? (swipeX > 0 ? 1 : 3)
+        : (swipeY > 0 ? 2 : 4);
+
+    if (config.lastKey === mouseKey) return;
+
+    try {
+        config.socket.send(mouseKey);
+        config.lastKey = mouseKey;
+    } catch (err) {
+        console.log("cannot send mouse press");
     }
 }
 
 function keyPressed() {
-    if (screen === 1 && lastKey != key) {
-        try {
-            socket.send(key);
-        } catch (err) {
-            console.log("cant send key press");
+    if (config.screen != 1) return;
+    if (config.lastKey === keyCode) return;
+
+    try {
+        let keyKey;
+        switch (keyCode) {
+            case 39:
+                keyKey = 1;
+                break;
+            case 40:
+                keyKey = 2;
+                break;
+            case 37:
+                keyKey = 3;
+                break;
+            case 38:
+                keyKey = 4;
+                break;
+            default:
+                return;
         }
-        lastKey = key;
+        config.socket.send(keyKey);
+        config.lastKey = keyKey;
+    } catch (err) {
+        console.log("cannot send key press");
     }
 }
 
@@ -109,14 +146,15 @@ function windowResized() {
 
 function draw() {
     background(0);
-    switch (screen) {
+    switch (config.screen) {
         case 0:
-            inpt.show();
-            bttn.show();
+            config.inpt.show();
+            config.bttn.show();
             break;
         case 1:
-            inpt.hide();
-            bttn.hide();
+            config.inpt.hide();
+            config.bttn.hide();
+
             let frameWidth = min(windowWidth, 500);
             let frameHeight = frameWidth * 2;
             let margin = frameWidth / 10;
@@ -124,49 +162,65 @@ function draw() {
             let tileSize = mazeWidth / maze[0].length;
             let mazeHeight = tileSize * maze.length;
 
-            if (gameStateCopy != null) {
-                for (let pac in gameStateCopy) {
-                    let x = parseInt(gameStateCopy[pac].x);
-                    let y = parseInt(gameStateCopy[pac].y);
-                    let sx = parseFloat(gameStateCopy[pac].smoothX);
-                    let sy = parseFloat(gameStateCopy[pac].smoothY);
-                    if (abs(sx-x)>0.1 || abs(sy-y)>0.1) {
-                        gameStateCopy[pac].f = (parseInt(gameStateCopy[pac].f) + 1) % 20;
-                    }
-                    gameStateCopy[pac].smoothX = lerp(sx, x, 0.15);
-                    gameStateCopy[pac].smoothY = lerp(sy, y, 0.15);
+            const itemName = "item:player:" + config.username;
+            if (!(itemName in config.objects)) break;
+            const item = config.objects[itemName];
+
+            for (const objectName in config.objects) {
+                const object = config.objects[objectName];
+                let x = parseInt(object.x);
+                let y = parseInt(object.y);
+                let sx = parseFloat(object.smoothX);
+                let sy = parseFloat(object.smoothY);
+                if (abs(sx - x) > 0.1 || abs(sy - y) > 0.1) {
+                    object.f = (parseInt(object.f) + 1) % 20;
                 }
+                config.objects[objectName].smoothX = lerp(sx, x, 0.15);
+                config.objects[objectName].smoothY = lerp(sy, y, 0.15);
+                if (abs(sx-x)>2) object.smoothX = object.x;
+                if (abs(sy-y)>2) object.smoothY = object.y;
             }
 
             push();
-            if (gameStateCopy != null) {
-                translate(-(margin + gameStateCopy[inpt.value()].smoothX * tileSize + tileSize / 2), 0);
-                translate(frameWidth / 2, 0);
-            }
+            translate(-margin, 0);
+            translate(-(config.objects[itemName].smoothX + 1 / 2) * tileSize, 0);
+            translate(frameWidth / 2, 0);
+
+            const currMaze = Math.floor(item.x / maze[0].length);
             drawMaze(mazeWidth * currMaze + margin, margin, tileSize);
             drawMaze(mazeWidth * (currMaze + 1) + margin, margin, tileSize);
             drawMaze(mazeWidth * (currMaze - 1) + margin, margin, tileSize);
 
-            if (gameStateCopy != null) {
-                for (let pac in gameStateCopy) {
-                    let thisMaze = Math.floor(gameStateCopy[pac].x / maze[0].length);
-                    if (inpt.value() === gameStateCopy[pac].username) {
-                        currMaze = thisMaze;
-                    }
-                    if (thisMaze >= currMaze - 1 && thisMaze <= currMaze + 1) {
-                        drawPacman(margin, margin, tileSize, gameStateCopy[pac]);
-                    }
-                }
+            drawPacman(margin, margin, tileSize, item);
+
+            for (const objectName in config.objects) {
+                const object = config.objects[objectName];
+                drawPacman(margin, margin, tileSize, object);
             }
-            pop()
+
+            pop();
+
             noStroke();
             fill(0, 0, 0);
             rect(frameWidth, 0, mazeWidth * 2, frameHeight);
-            fill(255, 255, 255);
+
             textAlign(LEFT, TOP);
-            textSize(tileSize * 3 / 4);
-            text("SERVER UUID: " + server, margin + tileSize, margin + mazeHeight + tileSize * 1);
-            text("CURRENT MAZE: " + currMaze, margin + tileSize, margin + mazeHeight + tileSize * 11 / 4);
+            noStroke();
+            fill(255, 255, 255);
+            textSize(tileSize);
+            const abbrUUID = config.serverUUID.substring(0, 20);
+            const textContent = `SERVER UUID: ${abbrUUID}...`;
+            text(
+                textContent,
+                margin + tileSize,
+                margin + mazeHeight + tileSize
+            );
+
+            // fill(255);
+            // noStroke();
+            // textAlign(LEFT, TOP);
+            // textSize(32);
+            break;
     }
 }
 
@@ -185,40 +239,6 @@ function drawPacman(mx, my, ts, gs) {
     y = my + gs.smoothY * ts - ts * 2;
     text(gs.username, x, y);
 }
-
-const maze = [
-    [11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 13, 14, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 15],
-    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
-    [16, 10, 19, 20, 20, 21, 10, 19, 20, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 20, 21, 10, 19, 20, 20, 21, 10, 18],
-    [16, 10, 17, 10, 10, 17, 10, 17, 10, 10, 10, 17, 10, 17, 17, 10, 17, 10, 10, 10, 17, 10, 17, 10, 10, 17, 10, 18],
-    [16, 10, 22, 20, 20, 23, 10, 22, 20, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 20, 23, 10, 22, 20, 20, 23, 10, 18],
-    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
-    [16, 10, 19, 20, 20, 21, 10, 19, 21, 10, 19, 20, 20, 20, 20, 20, 20, 21, 10, 19, 21, 10, 19, 20, 20, 21, 10, 18],
-    [16, 10, 22, 20, 20, 23, 10, 17, 17, 10, 22, 20, 20, 21, 19, 20, 20, 23, 10, 17, 17, 10, 22, 20, 20, 23, 10, 18],
-    [16, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 18],
-    [24, 25, 25, 25, 38, 26, 10, 17, 22, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 23, 17, 10, 27, 40, 25, 25, 25, 28],
-    [10, 10, 10, 10, 10, 29, 10, 17, 19, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 21, 17, 10, 30, 10, 10, 10, 10, 10],
-    [10, 10, 10, 10, 10, 16, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 18, 10, 10, 10, 10, 10],
-    [10, 10, 10, 10, 10, 31, 10, 17, 17, 10, 32, 25, 25, 33, 33, 25, 25, 34, 10, 17, 17, 10, 35, 10, 10, 10, 10, 10],
-    [12, 12, 12, 12, 39, 36, 10, 22, 23, 10, 18, 10, 10, 10, 10, 10, 10, 16, 10, 22, 23, 10, 37, 41, 12, 12, 12, 12],
-    [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18, 10, 10, 10, 10, 10, 10, 16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
-    [25, 25, 25, 25, 38, 26, 10, 19, 21, 10, 18, 10, 10, 10, 10, 10, 10, 16, 10, 19, 21, 10, 27, 40, 25, 25, 25, 25],
-    [10, 10, 10, 10, 10, 29, 10, 17, 17, 10, 42, 12, 12, 12, 12, 12, 12, 43, 10, 17, 17, 10, 30, 10, 10, 10, 10, 10],
-    [10, 10, 10, 10, 10, 16, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 18, 10, 10, 10, 10, 10],
-    [10, 10, 10, 10, 10, 31, 10, 17, 17, 10, 19, 20, 20, 20, 20, 20, 20, 21, 10, 17, 17, 10, 35, 10, 10, 10, 10, 10],
-    [11, 12, 12, 12, 39, 36, 10, 22, 23, 10, 22, 20, 20, 21, 19, 20, 20, 23, 10, 22, 23, 10, 37, 41, 12, 12, 12, 15],
-    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
-    [16, 10, 19, 20, 20, 21, 10, 19, 20, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 20, 21, 10, 19, 20, 20, 21, 10, 18],
-    [16, 10, 22, 20, 21, 17, 10, 22, 20, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 20, 23, 10, 17, 19, 20, 23, 10, 18],
-    [16, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 18],
-    [44, 20, 21, 10, 17, 17, 10, 19, 21, 10, 19, 20, 20, 20, 20, 20, 20, 21, 10, 19, 21, 10, 17, 17, 10, 19, 20, 46],
-    [45, 20, 23, 10, 22, 23, 10, 17, 17, 10, 22, 20, 20, 21, 19, 20, 20, 23, 10, 17, 17, 10, 22, 23, 10, 22, 20, 47],
-    [16, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 18],
-    [16, 10, 19, 20, 20, 20, 20, 23, 22, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 23, 22, 20, 20, 20, 20, 21, 10, 18],
-    [16, 10, 22, 20, 20, 20, 20, 20, 20, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 20, 20, 20, 20, 20, 20, 23, 10, 18],
-    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
-    [24, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 28]
-];
 
 function drawMaze(mx, my, ts) {
     let x, y;
@@ -414,3 +434,37 @@ function drawMaze(mx, my, ts) {
         }
     }
 }
+
+const maze = [
+    [11, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 13, 14, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 15],
+    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
+    [16, 10, 19, 20, 20, 21, 10, 19, 20, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 20, 21, 10, 19, 20, 20, 21, 10, 18],
+    [16, 10, 17, 10, 10, 17, 10, 17, 10, 10, 10, 17, 10, 17, 17, 10, 17, 10, 10, 10, 17, 10, 17, 10, 10, 17, 10, 18],
+    [16, 10, 22, 20, 20, 23, 10, 22, 20, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 20, 23, 10, 22, 20, 20, 23, 10, 18],
+    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
+    [16, 10, 19, 20, 20, 21, 10, 19, 21, 10, 19, 20, 20, 20, 20, 20, 20, 21, 10, 19, 21, 10, 19, 20, 20, 21, 10, 18],
+    [16, 10, 22, 20, 20, 23, 10, 17, 17, 10, 22, 20, 20, 21, 19, 20, 20, 23, 10, 17, 17, 10, 22, 20, 20, 23, 10, 18],
+    [16, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 18],
+    [24, 25, 25, 25, 38, 26, 10, 17, 22, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 23, 17, 10, 27, 40, 25, 25, 25, 28],
+    [10, 10, 10, 10, 10, 29, 10, 17, 19, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 21, 17, 10, 30, 10, 10, 10, 10, 10],
+    [10, 10, 10, 10, 10, 16, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 18, 10, 10, 10, 10, 10],
+    [10, 10, 10, 10, 10, 31, 10, 17, 17, 10, 32, 25, 25, 33, 33, 25, 25, 34, 10, 17, 17, 10, 35, 10, 10, 10, 10, 10],
+    [12, 12, 12, 12, 39, 36, 10, 22, 23, 10, 18, 10, 10, 10, 10, 10, 10, 16, 10, 22, 23, 10, 37, 41, 12, 12, 12, 12],
+    [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18, 10, 10, 10, 10, 10, 10, 16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10],
+    [25, 25, 25, 25, 38, 26, 10, 19, 21, 10, 18, 10, 10, 10, 10, 10, 10, 16, 10, 19, 21, 10, 27, 40, 25, 25, 25, 25],
+    [10, 10, 10, 10, 10, 29, 10, 17, 17, 10, 42, 12, 12, 12, 12, 12, 12, 43, 10, 17, 17, 10, 30, 10, 10, 10, 10, 10],
+    [10, 10, 10, 10, 10, 16, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 18, 10, 10, 10, 10, 10],
+    [10, 10, 10, 10, 10, 31, 10, 17, 17, 10, 19, 20, 20, 20, 20, 20, 20, 21, 10, 17, 17, 10, 35, 10, 10, 10, 10, 10],
+    [11, 12, 12, 12, 39, 36, 10, 22, 23, 10, 22, 20, 20, 21, 19, 20, 20, 23, 10, 22, 23, 10, 37, 41, 12, 12, 12, 15],
+    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
+    [16, 10, 19, 20, 20, 21, 10, 19, 20, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 20, 21, 10, 19, 20, 20, 21, 10, 18],
+    [16, 10, 22, 20, 21, 17, 10, 22, 20, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 20, 23, 10, 17, 19, 20, 23, 10, 18],
+    [16, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 18],
+    [44, 20, 21, 10, 17, 17, 10, 19, 21, 10, 19, 20, 20, 20, 20, 20, 20, 21, 10, 19, 21, 10, 17, 17, 10, 19, 20, 46],
+    [45, 20, 23, 10, 22, 23, 10, 17, 17, 10, 22, 20, 20, 21, 19, 20, 20, 23, 10, 17, 17, 10, 22, 23, 10, 22, 20, 47],
+    [16, 10, 10, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 17, 17, 10, 10, 10, 10, 10, 10, 18],
+    [16, 10, 19, 20, 20, 20, 20, 23, 22, 20, 20, 21, 10, 17, 17, 10, 19, 20, 20, 23, 22, 20, 20, 20, 20, 21, 10, 18],
+    [16, 10, 22, 20, 20, 20, 20, 20, 20, 20, 20, 23, 10, 22, 23, 10, 22, 20, 20, 20, 20, 20, 20, 20, 20, 23, 10, 18],
+    [16, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 18],
+    [24, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 28]
+];
