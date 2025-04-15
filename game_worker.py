@@ -126,11 +126,6 @@ def spawn_ghosts(mazeID, num_ghosts=4):
     ghost_colors = ["red", "pink", "cyan", "orange"]
     
     with redis_client.pipeline() as pipe:
-        # Check if ghosts already exist
-        # existing_ghosts = list(redis_client.scan_iter("item:ghost:*"))
-        # if existing_ghosts:
-        #     # print(f"Found {len(existing_ghosts)} existing ghosts")
-        #     return
             
         ct_s, ct_ms = redis_client.time()
         current_time = ct_s + ct_ms / 1_000_000        
