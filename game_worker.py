@@ -91,7 +91,7 @@ def movements():
                     tx = redis_client.hmget(key, ["x"])[0]
                     curr_dropper = math.floor(int(tx) / len(maze[0]))
                     dropper_locations.append(curr_dropper)
-                if dropper_locations.count(curr_player_maze) < 5:
+                if curr_player_maze not in dropper_locations:
                     redis_client.set("dropper", 0)
                     spawn_dropper()
 
