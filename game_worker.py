@@ -86,6 +86,18 @@ def movements():
                         pipe.execute()
                         return
                 
+                    player_movement_count = redis_client.incrby('dropper', 1)
+                    dropper_locations = []
+                    if player_movement_count > 100:
+                        for key in redis_client.scan_iter("item:dropper:*"):
+                            pipe.hmget(key, ['x'])
+                            list_X = pipe.execute()[0][0]
+                            curr_dropper = math.floor(int(list_X) / len(maze[0]))
+                            dropper_locations.append(curr_dropper)
+                        if curr_player_maze not in dropper_locations:    
+                            redis_client.set("dropper", 0)
+                            spawn_dropper()
+                
                 if entity == "player":
                     print(f"curr player maze: {curr_player_maze}")
                     mazes = []
@@ -120,6 +132,9 @@ def movements():
                         else:
                             pipe.zincrby("leaderboard", 10, name)
                         pipe.sadd("pellets", f"{x},{y}")
+                        
+                    if p and entity == 'dropper':
+                        pipe.srem("pellets", f"{x},{y}")
                     
                 elif is_valid_move(d, x, y):
                     new_x, new_y = calculate_new_position(d, x, y)
@@ -127,9 +142,15 @@ def movements():
                     pipe.hset(item, "y", new_y)
                     # print(f"moved {item}")
                     if not p and entity == "player":
+                        if (x,y) in power_pellets:
+                            print(f"power pellet eaten")
+                            pipe.hset(item, "status", 25)
+                        else:
+                            pipe.zincrby("leaderboard", 10, name)
                         pipe.sadd("pellets", f"{x},{y}")
-                        pipe.zincrby("leaderboard", 10, name)
-                elif entity == 'ghost':
+                    if p and entity == 'dropper':
+                        pipe.srem("pellets", f"{x},{y}")
+                elif entity == 'ghost' or entity=='dropper':
                     new_n_choices = get_valid_directions(x,y)
                     new_n = random.choice(new_n_choices)
                     pipe.hset(item, "n", new_n)
@@ -164,6 +185,33 @@ def spawn_ghosts(mazeID, num_ghosts=4):
             }
             pipe.hset(f"item:ghost:{ghost_uuid}", mapping=ghost)
             pipe.zadd("movements", {f"item:ghost:{ghost_uuid}": current_time})
+        
+        pipe.execute()
+        # print(f"Created {num_ghosts} ghosts") 
+
+def spawn_dropper(num_dropper=1):
+    dropper_colors = ["brown"]
+    
+    with redis_client.pipeline() as pipe:
+            
+        ct_s, ct_ms = redis_client.time()
+        current_time = ct_s + ct_ms / 1_000_000        
+        for i in range(num_dropper):
+            dropper_uuid = str(uuid.uuid4())
+            dropper_color = dropper_colors[i % len(dropper_colors)]            
+            # coords = redis_client.srandmember('pellets')
+            (x,y) = tuple(redis_client.srandmember('pellets').split(','))
+            random_direction = random.choice([1,2,3,4])
+            dropper = {
+                "username": dropper_uuid,
+                "x": x, "y": y,
+                "smoothX": x, "smoothY": y,
+                "f": 0, "n": random_direction, "d": random_direction,
+                "color": dropper_color,
+                "mazeId": 0,  # Current maze ID (for infinite mazes)
+            }
+            pipe.hset(f"item:dropper:{dropper_uuid}", mapping=dropper)
+            pipe.zadd("movements", {f"item:dropper:{dropper_uuid}": current_time})
         
         pipe.execute()
         # print(f"Created {num_ghosts} ghosts") 
