@@ -185,7 +185,7 @@ async def send_msgs():
                         })
                     except Exception:
                         pass
-                await asyncio.sleep(0.01)
+                await asyncio.sleep(0.1)
         except Exception as e:
             print(f"{e}")
 

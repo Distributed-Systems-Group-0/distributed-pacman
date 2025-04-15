@@ -42,6 +42,7 @@ function setup() {
             config.socketOpened = true;
         };
         config.socket.onclose = () => {
+            console.log("yo yo yo")
             if (config.socketOpened === false) return;
             if (reattempts > 0) {
                 const delay = (3 - reattempts) * 100;
@@ -195,10 +196,10 @@ function draw() {
                 let sx = parseFloat(object.smoothX);
                 let sy = parseFloat(object.smoothY);
                 if (abs(sx - x) > 0.1 || abs(sy - y) > 0.1) {
-                    object.f = (parseInt(object.f) + 1) % 20;
+                    object.f = (parseInt(object.f) + 2) % 20;
                 }
-                config.objects[objectName].smoothX = lerp(sx, x, 0.15);
-                config.objects[objectName].smoothY = lerp(sy, y, 0.15);
+                config.objects[objectName].smoothX = lerp(sx, x, 0.2);
+                config.objects[objectName].smoothY = lerp(sy, y, 0.2);
                 if (abs(sx - x) > 2) object.smoothX = object.x;
                 if (abs(sy - y) > 2) object.smoothY = object.y;
             }
