@@ -128,7 +128,9 @@ def register(username: str):
                     "username": username,
                     "x": x, "y": y,
                     "smoothX": x, "smoothY": y,
-                    "f": 0, "n": 0, "d": 0
+                    "f": 0, "n": 0, "d": 0,
+                    "status":0, 
+                    "lives": 3
                 }
                 pipe.multi()
                 pipe.hset(f"item:player:{username}", mapping=pacman)

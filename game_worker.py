@@ -11,6 +11,7 @@ from redis import Redis, WatchError
 
 REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
 REDIS_PASS = os.getenv("REDIS_PASS", None)
+power_pellets = [(1,1), (26,1), (1,29), (26,29)]
 
 redis_client = Redis(
     host=REDIS_HOST,
@@ -65,7 +66,6 @@ def movements():
                         
                         if f"{list_XY[0]},{list_XY[1]}" == f"{x},{y}":
                             collisions.add(key)
-
                             # print(f"Collision1: {collisions}")
                         elif f"{list_XY[0]},{list_XY[1]}" == f"{new_px},{new_py}":
                             collisions.add(key)
@@ -88,7 +88,11 @@ def movements():
                     if curr_player_maze not in mazes:
                         # print("need to spawn ghost")
                         spawn_ghosts(curr_player_maze)
-                    
+                
+                if entity == 'player':
+                    value = redis_client.hget(item, 'status')
+                    if int(value) >= 1:
+                        redis_client.hincrby(item, 'status', -1)
 
                 if is_valid_move(n, x, y,entity):
                     # if entity == 'ghost':
@@ -99,8 +103,13 @@ def movements():
                     pipe.hset(item, "y", new_y)
                     # print(f"turned {item}")
                     if not p and entity == "player":
+                        if (x,y) in power_pellets:
+                            print(f"power pellet eaten")
+                            pipe.hset(item, "status", 25)
+                        else:
+                            pipe.zincrby("leaderboard", 10, name)
                         pipe.sadd("pellets", f"{x},{y}")
-                        pipe.zincrby("leaderboard", 10, name)
+                    
                 elif is_valid_move(d, x, y):
                     new_x, new_y = calculate_new_position(d, x, y)
                     pipe.hset(item, "x", new_x)

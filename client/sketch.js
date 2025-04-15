@@ -11,6 +11,7 @@ const config = {
     serverUUID: "",
     objects: {},
     pellets: {},
+    powerPellets: [[1,1], [26, 1], [1, 29], [26,29]],
     username: "",
     leaderboard: {}
 }
@@ -62,11 +63,15 @@ function setup() {
                 case "state":
                     config.serverUUID = message.content.serverUUID;
                     for (const objectName of Object.keys(message.content.objects)) {
-                        console.log(objectName)
+                        // console.log(objectName)
                         if (objectName in config.objects) {
                             config.objects[objectName].x = message.content.objects[objectName].x;
                             config.objects[objectName].y = message.content.objects[objectName].y;
                             config.objects[objectName].d = message.content.objects[objectName].d;
+                            if ('status' in message.content.objects[objectName]){
+                                config.objects[objectName].status = message.content.objects[objectName].status;
+                                console.log(config.objects[objectName].status)
+                            }
                         } else {
                             config.objects[objectName] = message.content.objects[objectName];
                         }
@@ -211,12 +216,26 @@ function draw() {
             for (const pair of config.pellets) {
                 const x = pair[0];
                 const y = pair[1];
-                noStroke();
-                fill(255, 255, 0);
+                // console.log("pair:", x, y);
+                let powerBool = false;
+                for(let i=0;i<config.powerPellets.length;i++){
+                    if (mod(x,maze[0].length) == config.powerPellets[i][0] && y == config.powerPellets[i][1]){
+                        powerBool = true;
+                    }
+                }
+                let size = tileSize/3;
+                if(powerBool){
+                    noStroke()
+                    fill(0,255,0)
+                    size = tileSize/2
+                }else{
+                    noStroke();
+                    fill(255,255,0)
+                }
                 circle(
                     margin + tileSize * (x + 1 / 2),
                     margin + tileSize * (y + 1 / 2),
-                    tileSize / 3
+                    size
                 );
             }
             
@@ -302,6 +321,10 @@ function drawPacmanandGhosts(mx, my, ts, gs) {
         }
     } else {
         fill(255, 255, 0);
+    }
+
+    if(gs.status>0){
+        fill(0,255,0)
     }
     
     let x = mx + gs.smoothX * ts + ts / 2;
