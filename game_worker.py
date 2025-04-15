@@ -1,6 +1,8 @@
+import math
 import os
 import random
 import time
+import uuid
 
 from redis import Redis, WatchError
 
@@ -50,6 +52,7 @@ def movements():
                 response = pipe.execute()
                 n, d, x, y = response[1:5]
                 n, d, x, y = int(n), int(d), int(x), int(y)
+                curr_player_maze = math.floor(int(x) / len(maze[0]))
                 pipe.sismember("pellets", f"{x},{y}")
                 p = pipe.execute()[0]
                 
@@ -59,26 +62,42 @@ def movements():
                     for key in redis_client.scan_iter("item:ghost:*"):
                         pipe.hmget(key, ['x','y'])
                         list_XY = pipe.execute()[0]
+                        
                         if f"{list_XY[0]},{list_XY[1]}" == f"{x},{y}":
                             collisions.add(key)
 
-                            print(f"Collision1: {collisions}")
+                            # print(f"Collision1: {collisions}")
                         elif f"{list_XY[0]},{list_XY[1]}" == f"{new_px},{new_py}":
                             collisions.add(key)
-                            print(f"Collision2: {collisions}")
+                            # print(f"Collision2: {collisions}")
                     pipe.zincrby('leaderboard', len(collisions)*100, name)
                     for collision in collisions:
                         pipe.delete(collision)
                     pipe.execute()
+                
+                if entity == "player":
+                    print(f"curr player maze: {curr_player_maze}")
+                    mazes = []
+                    for key in redis_client.scan_iter("item:ghost:*"):
+                        pipe.hmget(key, ['x', 'username'])
+                        list_X = pipe.execute()[0][0]
+                        # print(f"list_X: {list_X}")
+                        curr_maze = math.floor(int(list_X) / len(maze[0]))
+                        # print(f"curent maze: {curr_maze}")
+                        mazes.append(curr_maze)
+                    if curr_player_maze not in mazes:
+                        # print("need to spawn ghost")
+                        spawn_ghosts(curr_player_maze)
+                    
 
                 if is_valid_move(n, x, y,entity):
-                    if entity == 'ghost':
-                        print("ghost here")
+                    # if entity == 'ghost':
+                    #     print("ghost here")
                     pipe.hset(item, "d", n)
                     new_x, new_y = calculate_new_position(n, x, y)
                     pipe.hset(item, "x", new_x)
                     pipe.hset(item, "y", new_y)
-                    print(f"turned {item}")
+                    # print(f"turned {item}")
                     if not p and entity == "player":
                         pipe.sadd("pellets", f"{x},{y}")
                         pipe.zincrby("leaderboard", 10, name)
@@ -86,7 +105,7 @@ def movements():
                     new_x, new_y = calculate_new_position(d, x, y)
                     pipe.hset(item, "x", new_x)
                     pipe.hset(item, "y", new_y)
-                    print(f"moved {item}")
+                    # print(f"moved {item}")
                     if not p and entity == "player":
                         pipe.sadd("pellets", f"{x},{y}")
                         pipe.zincrby("leaderboard", 10, name)
@@ -103,7 +122,36 @@ def movements():
             # print(e.with_traceback())
             print("movements race condition detected")
 
-
+def spawn_ghosts(mazeID, num_ghosts=4):
+    ghost_colors = ["red", "pink", "cyan", "orange"]
+    
+    with redis_client.pipeline() as pipe:
+        # Check if ghosts already exist
+        # existing_ghosts = list(redis_client.scan_iter("item:ghost:*"))
+        # if existing_ghosts:
+        #     # print(f"Found {len(existing_ghosts)} existing ghosts")
+        #     return
+            
+        ct_s, ct_ms = redis_client.time()
+        current_time = ct_s + ct_ms / 1_000_000        
+        for i in range(num_ghosts):
+            ghost_uuid = str(uuid.uuid4())
+            ghost_color = ghost_colors[i % len(ghost_colors)]            
+            x,y = 13+mazeID*len(maze[0]), 11
+            random_direction = random.choice([1,3])
+            ghost = {
+                "username": ghost_uuid,
+                "x": x, "y": y,
+                "smoothX": x, "smoothY": y,
+                "f": 0, "n": random_direction, "d": random_direction,
+                "color": ghost_color,
+                "mazeId": 0,  # Current maze ID (for infinite mazes)
+            }
+            pipe.hset(f"item:ghost:{ghost_uuid}", mapping=ghost)
+            pipe.zadd("movements", {f"item:ghost:{ghost_uuid}": current_time})
+        
+        pipe.execute()
+        # print(f"Created {num_ghosts} ghosts") 
 
 def get_valid_directions(x, y):
     """Get list of valid directions from current position"""

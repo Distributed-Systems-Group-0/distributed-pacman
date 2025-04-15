@@ -29,7 +29,6 @@ redis_client = Redis(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        register_ghosts()
         send_task = asyncio.create_task(send_msgs())
         yield
     except CancelledError as e:
@@ -109,8 +108,22 @@ def register(username: str):
     with redis_client.pipeline() as pipe:
         try:
             pipe.watch(f"item:player:{username}")
-            if not pipe.exists(f"item:player:{username}"):
-                (x, y) = random_location()
+            pipe.execute()
+            if not redis_client.exists(f"item:player:{username}"):
+                mazes = []
+                for key in redis_client.scan_iter("item:*"):
+                    pipe.hmget(key, ['x', 'username'])
+                    list_X = pipe.execute()[0][0]
+                    print(f"list_X: {list_X}")
+                    curr_maze = round(int(list_X) / len(maze[0]))
+                    print(f"curent maze: {curr_maze}")
+                    mazes.append(curr_maze)
+                
+                new_maze = closest_missing(mazes)
+                x = 18 + len(maze[0])*new_maze
+                y = 20           
+                print(f"new maze: {new_maze}")
+                
                 pacman = {
                     "username": username,
                     "x": x, "y": y,
@@ -127,38 +140,7 @@ def register(username: str):
             return True
         except WatchError:
             print("race condition detected")
-            return False
-
-def register_ghosts(num_ghosts=4):
-    ghost_colors = ["red", "pink", "cyan", "orange"]
-    
-    with redis_client.pipeline() as pipe:
-        # Check if ghosts already exist
-        existing_ghosts = list(redis_client.scan_iter("item:ghost:*"))
-        if existing_ghosts:
-            print(f"Found {len(existing_ghosts)} existing ghosts")
-            return
-            
-        ct_s, ct_ms = redis_client.time()
-        current_time = ct_s + ct_ms / 1_000_000        
-        for i in range(num_ghosts):
-            ghost_name = f"ghost{i+1}"
-            ghost_color = ghost_colors[i % len(ghost_colors)]            
-            x,y = 13,11
-            random_direction = random.choice([1,3])
-            ghost = {
-                "username": ghost_name,
-                "x": x, "y": y,
-                "smoothX": x, "smoothY": y,
-                "f": 0, "n": random_direction, "d": random_direction,
-                "color": ghost_color,
-                "mazeId": 0,  # Current maze ID (for infinite mazes)
-            }
-            pipe.hset(f"item:ghost:{ghost_name}", mapping=ghost)
-            pipe.zadd("movements", {f"item:ghost:{ghost_name}": current_time})
-        
-        pipe.execute()
-        print(f"Created {num_ghosts} ghosts")        
+            return False       
 
 async def send_msgs():
     while True:
@@ -189,7 +171,7 @@ async def send_msgs():
                         pass
                 await asyncio.sleep(0.01)
         except Exception as e:
-            print(f"hello world {e}")
+            print(f"{e}")
 
 async def recv_msgs(ws: WebSocket, username: str):
     try:
@@ -213,6 +195,15 @@ def pellets_spaces(x: int):
         for j in range(len(maze))
         if maze[j % len(maze)][i % len(maze[0])] == 0}
     return list(open_spaces - empty_spaces)
+
+def closest_missing(nums):
+    nums_set = set(nums)
+    i = 0
+    while True:
+        for x in (-i, i):
+            if x not in nums_set:
+                return x
+        i += 1
 
 def random_location():
     open_spaces = [
