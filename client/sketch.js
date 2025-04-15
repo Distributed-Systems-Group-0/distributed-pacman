@@ -323,6 +323,9 @@ function drawPacmanandGhosts(mx, my, ts, gs) {
             case "orange":
                 fill(255, 165, 0);
                 break;
+            case "brown":
+                fill(153,76,0)
+                break;
             default:
                 fill(255, 0, 0); 
         }
