@@ -81,6 +81,7 @@ def movements():
             lives = int(redis_client.hget(item, "lives"))
             if lives <= 0:
                 redis_client.delete(item)
+                redis_client.zrem("leaderboard", name)
                 return
             
             player_movement_count = redis_client.incrby("dropper", 1)
@@ -175,31 +176,27 @@ def spawn_ghosts(mazeID, num_ghosts=4):
 def spawn_dropper(num_dropper=1):
     dropper_colors = ["brown"]
     try:
-        with redis_client.pipeline() as pipe:
-                
-            ct_s, ct_ms = redis_client.time()
-            current_time = ct_s + ct_ms / 1_000_000        
-            for i in range(num_dropper):
-                dropper_uuid = str(uuid.uuid4())
-                dropper_color = dropper_colors[i % len(dropper_colors)]            
-                # coords = redis_client.srandmember('pellets')
-                (x,y) = tuple(redis_client.srandmember('pellets').split(','))
-                random_direction = random.choice([1,2,3,4])
-                dropper = {
-                    "username": dropper_uuid,
-                    "x": x, "y": y,
-                    "smoothX": x, "smoothY": y,
-                    "f": 0, "n": random_direction, "d": random_direction,
-                    "color": dropper_color,
-                    "mazeId": 0,  # Current maze ID (for infinite mazes)
-                }
-                pipe.hset(f"item:dropper:{dropper_uuid}", mapping=dropper)
-                pipe.zadd("movements", {f"item:dropper:{dropper_uuid}": current_time})
-            
-            pipe.execute()
-            # print(f"Created {num_ghosts} ghosts") 
-    except WatchError:
-        print("race condition problem for droppers")
+        ct_s, ct_ms = redis_client.time()
+        current_time = ct_s + ct_ms / 1_000_000        
+        for i in range(num_dropper):
+            dropper_uuid = str(uuid.uuid4())
+            dropper_color = dropper_colors[i % len(dropper_colors)]            
+            # coords = redis_client.srandmember('pellets')
+            (x,y) = tuple(redis_client.srandmember('pellets').split(','))
+            random_direction = random.choice([1,2,3,4])
+            dropper = {
+                "username": dropper_uuid,
+                "x": x, "y": y,
+                "smoothX": x, "smoothY": y,
+                "f": 0, "n": random_direction, "d": random_direction,
+                "color": dropper_color,
+                "mazeId": 0,  # Current maze ID (for infinite mazes)
+            }
+            redis_client.hset(f"item:dropper:{dropper_uuid}", mapping=dropper)
+            redis_client.zadd("movements", {f"item:dropper:{dropper_uuid}": current_time})
+        # print(f"Created {num_ghosts} ghosts") 
+    except Exception:
+        print("race condition or other problem for droppers")
 
 
 def get_valid_directions(x, y):
