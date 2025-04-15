@@ -70,10 +70,21 @@ def movements():
                         elif f"{list_XY[0]},{list_XY[1]}" == f"{new_px},{new_py}":
                             collisions.add(key)
                             # print(f"Collision2: {collisions}")
-                    pipe.zincrby('leaderboard', len(collisions)*100, name)
+                    if int(redis_client.hget(item, "status")) >0:
+                        pipe.zincrby('leaderboard', len(collisions)*100, name)
+
+                    elif len(collisions)>0:
+                        pipe.hincrby(item, 'lives', -1)
                     for collision in collisions:
                         pipe.delete(collision)
                     pipe.execute()
+
+                    lives = int(redis_client.hget(item, "lives"))
+                    print(f"lives remaining: {lives}")
+                    if  lives <= 0:
+                        pipe.delete(item)
+                        pipe.execute()
+                        return
                 
                 if entity == "player":
                     print(f"curr player maze: {curr_player_maze}")
@@ -156,6 +167,7 @@ def spawn_ghosts(mazeID, num_ghosts=4):
         
         pipe.execute()
         # print(f"Created {num_ghosts} ghosts") 
+
 
 def get_valid_directions(x, y):
     """Get list of valid directions from current position"""

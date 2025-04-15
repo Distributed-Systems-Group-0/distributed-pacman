@@ -69,8 +69,9 @@ function setup() {
                             config.objects[objectName].y = message.content.objects[objectName].y;
                             config.objects[objectName].d = message.content.objects[objectName].d;
                             if ('status' in message.content.objects[objectName]){
+                                config.objects[objectName].lives = message.content.objects[objectName].lives;
                                 config.objects[objectName].status = message.content.objects[objectName].status;
-                                console.log(config.objects[objectName].status)
+                                // console.log(config.objects[objectName].lives)
                             }
                         } else {
                             config.objects[objectName] = message.content.objects[objectName];
@@ -292,6 +293,12 @@ function draw() {
                 text(
                     config.leaderboard[i][1],
                     margin + tileSize * 12,
+                    margin + mazeHeight + tileSize * (8 + i)
+                );
+                textAlign(RIGHT, TOP);
+                text(
+                    config.objects["item:player:"+config.leaderboard[i][0]].lives,
+                    margin + tileSize * 20,
                     margin + mazeHeight + tileSize * (8 + i)
                 );
             }

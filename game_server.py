@@ -155,6 +155,20 @@ async def send_msgs():
                 result = pipe.execute()
                 objects = {key: item for key, item in zip(keys, result)}
                 for client in clients:
+                    if redis_client.hlen(f"item:player:{client}") == 0:
+                        try:
+                            await clients[client].send_json({
+                                "type": "state",
+                                "content": {
+                                    "serverUUID": instance_uuid,
+                                    "pellets": (),
+                                    "objects": objects,
+                                    "leaderboard": lb
+                                }
+                            })
+                        except Exception:
+                            pass
+                        continue
                     pipe.hget(f"item:player:{client}", "x")
                     x = int(pipe.execute()[0])
                     pipe.zrange("leaderboard", 0, -1, True, True)
